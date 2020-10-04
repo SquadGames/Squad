@@ -5,7 +5,7 @@ pragma solidity >=0.6.0 <0.7.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract ManagedERC20 is Ownable, ERC20 {
+contract ERC20Managed is Ownable, ERC20 {
     constructor(string memory name, string memory symbol)
         public
         ERC20(name, symbol)
