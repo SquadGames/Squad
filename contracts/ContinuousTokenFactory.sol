@@ -2,11 +2,14 @@
 
 pragma solidity >=0.6.0 <0.7.0;
 
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./ERC20Managed.sol";
 import "./ICurve.sol";
 
 contract ContinuousTokenFactory {
+  using SafeMath for uint256;
+
   ERC20 public reserveToken;
 
   struct ContinuousToken {
@@ -58,14 +61,14 @@ contract ContinuousTokenFactory {
     string name,
     uint256 amount,
     uint256 price,
-    address to,
+    address buyer,
   )
 
   function buy(
     bytes32 id, 
     uint256 amount,
     uint256 maxPrice,
-    address to
+    address buyer
   ) external {
     (ERC20Managed token, ICurve curve) = unpack(id);
 
@@ -75,9 +78,9 @@ contract ContinuousTokenFactory {
 
     // Transfer and mint
     require(
-      reserveToken.transferFrom(msg.sender, address(this), price)
+      reserveToken.transferFrom(buyer, address(this), price)
     );
-    token.mint(to, amount);
+    token.mint(buyer, amount);
 
     emit Buy(
       id,
@@ -88,22 +91,47 @@ contract ContinuousTokenFactory {
     )
   }
 
+  event Sell(
+    bytes32 id,
+    string name,
+    uint256 amount,
+    uint256 price,
+    uint256 seller
+  )
+
   function sell(
     bytes32 id,
     uint256 amount,
-    uint256 minValue,
-    address to
+    uint256 minPrice,
+    address seller
   ) external {
+    require(balanceOf(id, seller) >= amount, "ContinuousTokenFactory: seller holds too few tokens");
     (ERC20Managed token, ICurve curve) = unpack(id);
 
-    
+    // Check price
+    uint256 price = curve.price(token.totalSupply().sub(amount), amount);
+    require(price >= minPrice, "ContinuousTokenFactory: price less than minPrice");
+
+    // Burn and transfer
+    token.burn(seller, amount);
+    require(
+      reserveToken.transfer(seller, price)
+    );
+
+    emit Sell(
+      id,
+      token.name,
+      amount,
+      price,
+      seller
+    )
   }
 
   // TODO portals to other ERC20 interface functions
 
   function totalSupply() external view returns (uint256);
 
-  function balanceOf(address account) external view returns (uint256);
+  function balanceOf(address account) public view returns (uint256);
 
   function transfer(address recipient, uint256 amount) external returns (bool);
 
