@@ -2,16 +2,27 @@
 
 pragma solidity >=0.6.0 <0.7.0;
 
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./ERC20Managed.sol";
 import "./ICurve.sol";
 
 contract ContinuousTokenFactory {
+  ERC20 public reserveToken;
+
   struct ContinuousToken {
     address token;
     address curve;
   }
 
   mapping(bytes32 => ContinuousToken) public continuousTokens;
+
+  constructor(address _reserveToken) public {
+    require(
+      _reserveToken != address(0),
+      "ContinuousTokenFactory: no reserve token ERC20 address"
+    );
+    reserveToken = ERC20(_reserveToken);
+  }
 
   event NewContinuousToken(
     bytes32 id,
@@ -26,11 +37,13 @@ contract ContinuousTokenFactory {
     string memory symbol,
     address curve
   ) public {
-    // TODO this probably isn't correct
-    require(ICurve(curve), "ContinuousTokenFactory: curve must be ICurve");
+    require(!exists(id), "ContinuousTokenFactory: invalid id");
+    // TODO this probably isn't correct -- we want to check that a contract compliant with ICurve is at curve
+    require(ICurve(curve), "ContinuousTokenFactory: curve not ICurve");
 
     ERC20Managed token = new ERC20Managed(name, symbol);
     ContinuousToken continuousToken = ContinuousToken(token, curve);
+    continuousTokens[id] = continuousToken;
 
     emit NewContinuousToken(
       id,
@@ -40,11 +53,76 @@ contract ContinuousTokenFactory {
     );
   }
 
-  function buy() public {}
+  event Buy(
+    bytes32 id, 
+    string name,
+    uint256 amount,
+    uint256 price,
+    address to,
+  )
 
-  function sell() public {}
+  function buy(
+    bytes32 id, 
+    uint256 amount,
+    uint256 maxPrice,
+    address to
+  ) external {
+    (ERC20Managed token, ICurve curve) = unpack(id);
 
-  function transfer() public {}
+    // Check price
+    uint256 price = curve.price(token.totalSupply(), amount);
+    require(price <= maxPrice, "ContinuousTokenFactory: price greater than maxPrice");
+
+    // Transfer and mint
+    require(
+      reserveToken.transferFrom(msg.sender, address(this), price)
+    );
+    token.mint(to, amount);
+
+    emit Buy(
+      id,
+      token.name,
+      amount,
+      price,
+      to
+    )
+  }
+
+  function sell(
+    bytes32 id,
+    uint256 amount,
+    uint256 minValue,
+    address to
+  ) external {
+    (ERC20Managed token, ICurve curve) = unpack(id);
+
+    
+  }
 
   // TODO portals to other ERC20 interface functions
+
+  function totalSupply() external view returns (uint256);
+
+  function balanceOf(address account) external view returns (uint256);
+
+  function transfer(address recipient, uint256 amount) external returns (bool);
+
+  function approve(address spender, uint256 amount) external returns (bool);
+
+  function exists(bytes32 id) internal view returns (bool) {
+    return continuousTokens[id].token != address(0);
+  }
+
+  function unpack(bytes32 id) internal view returns (
+    ERC20Managed token,
+    ICurve curve
+  ) {
+    require(exists(id), "ContinuousTokenFactory: invalid id");
+    ContinuousToken storage ct = continuousTokens[id];
+    require(ct.token != address(0), "ContinuousTokenFactory: invalid token");
+    require(ct.curve != address(0), "ContinuousTokenFactory: invalid curve");
+    ERC20Managed token = ERC20Managed(ct.token)
+    ICurve curve = ICurve(ct.curve)
+    return (token, curve)
+  }
 }
