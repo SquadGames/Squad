@@ -1,0 +1,48 @@
+{
+  "name": "squad",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "ci": "npm run lint && npm run test",
+    "lint": "npm run lint-js && npm run lint-sol",
+    "lint-js": "npx standard",
+    "fix-js": "npx standard --fix",
+    "lint-sol": "npx solhint -f table contracts/**/*.sol",
+    "fix-sol": "npx prettier --write contracts/**/*.sol",
+    "docs": "npm run docs-sol",
+    "docs-sol": "npx solidity-docgen",
+    "test": "npx buidler --network ganache test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SquadGames/Squad.git"
+  },
+  "author": "squad.games",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/SquadGames/Squad/issues"
+  },
+  "homepage": "https://github.com/SquadGames/Squad#readme",
+  "devDependencies": {
+    "@nomiclabs/buidler": "^1.4.7",
+    "@nomiclabs/buidler-ethers": "^2.0.0",
+    "@nomiclabs/buidler-ganache": "^1.3.3",
+    "@nomiclabs/buidler-waffle": "^2.1.0",
+    "chai": "^4.2.0",
+    "ethereum-waffle": "^3.1.1",
+    "ethers": "^5.0.15",
+    "prettier": "^2.1.1",
+    "prettier-plugin-solidity": "^1.0.0-alpha.57",
+    "solhint": "^3.2.0",
+    "solhint-plugin-prettier": "0.0.5",
+    "standard": "^14.3.4"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^3.2.0",
+    "solidity-docgen": "^0.5.6"
+  }
+}
