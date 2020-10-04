@@ -69,7 +69,7 @@ contract ContinuousTokenFactory {
     uint256 amount,
     uint256 maxPrice,
     address buyer
-  ) external {
+  ) external returns (bool) {
     (ERC20Managed token, ICurve curve) = unpack(id);
 
     // Check price
@@ -89,6 +89,7 @@ contract ContinuousTokenFactory {
       price,
       to
     )
+    return true
   }
 
   event Sell(
@@ -104,7 +105,7 @@ contract ContinuousTokenFactory {
     uint256 amount,
     uint256 minPrice,
     address seller
-  ) external {
+  ) external returns (bool) {
     require(balanceOf(id, seller) >= amount, "ContinuousTokenFactory: seller holds too few tokens");
     (ERC20Managed token, ICurve curve) = unpack(id);
 
@@ -125,17 +126,57 @@ contract ContinuousTokenFactory {
       price,
       seller
     )
+    return true
   }
 
   // TODO portals to other ERC20 interface functions
 
-  function totalSupply() external view returns (uint256);
+  function totalSupply(bytes32 id) external view returns (uint256) {
+    (ERC20Managed token, ) = unpack(id);
+    return token.totalSupply()
+  };
 
-  function balanceOf(address account) public view returns (uint256);
+  function balanceOf(bytes32 id, address account) external view returns (uint256) {
+    (ERC20Managed token, ) = unpack(id);
+    return token.balanceOf(account);
+  };
 
-  function transfer(address recipient, uint256 amount) external returns (bool);
+  function approve(
+    bytes32 id, 
+    address spender, 
+    uint256 amount
+  ) external returns (bool) {
+    (ERC20Managed token, ) = unpack(id);
+    return token.approve(spender, amount);
+  };
 
-  function approve(address spender, uint256 amount) external returns (bool);
+  function allowance(
+    bytes32 id,
+    address owner, 
+    address spender
+  ) external view returns (uint256) {
+    (ERC20Managed token, ) = unpack(id);
+    return token.allowance(owner, spender);
+  }
+
+  function transfer(
+    bytes32 id, 
+    address recipient, 
+    uint256 amount
+  ) external returns (bool) {
+    (ERC20Managed token, ) = unpack(id);
+    return token.transfer(recipient, amount);
+  };
+
+  function transferFrom(
+    bytes32 id,
+    address sender, 
+    address recipient, 
+    uint256 amount
+  ) external returns (bool) {
+    (ERC20Managed token, ) = unpack(id);
+    return token.transferFrom(sender, recipient, amount);
+  }
 
   function exists(bytes32 id) internal view returns (bool) {
     return continuousTokens[id].token != address(0);
