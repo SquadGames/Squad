@@ -41,6 +41,8 @@ contract ContinuousTokenFactory {
     address curve
   ) public returns (bool) {
     require(!exists(id), "ContinuousTokenFactory: invalid id");
+    require(curve != address(0), "ContinuousTokenFactory: curve at address 0");
+    // TODO find a way to require a Curve contract be at curve
     // require(Curve(curve).price(0, 1), "ContinuousTokenFactory: invalid curve");
 
     address token = address(new ERC20Managed(name, symbol));
@@ -127,6 +129,15 @@ contract ContinuousTokenFactory {
       seller
     );
     return true;
+  }
+
+  function price(
+    bytes32 id, 
+    uint256 supply, 
+    uint256 units
+  ) external view returns (uint256) {
+    ( , Curve curve) = unpack(id);
+    return curve.price(supply, units);
   }
 
   // TODO portals to other ERC20 interface functions
