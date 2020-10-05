@@ -5,7 +5,7 @@ pragma solidity >=0.6.0 <0.7.0;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./ERC20Managed.sol";
-import "./ICurve.sol";
+import "./Curve.sol";
 
 contract ContinuousTokenFactory {
   using SafeMath for uint256;
@@ -39,13 +39,12 @@ contract ContinuousTokenFactory {
     string memory name, 
     string memory symbol,
     address curve
-  ) public {
+  ) public returns (bool) {
     require(!exists(id), "ContinuousTokenFactory: invalid id");
-    // TODO this probably isn't correct -- we want to check that a contract compliant with ICurve is at curve
-    require(ICurve(curve), "ContinuousTokenFactory: curve not ICurve");
+    // require(Curve(curve).price(0, 1), "ContinuousTokenFactory: invalid curve");
 
-    ERC20Managed token = new ERC20Managed(name, symbol);
-    ContinuousToken continuousToken = ContinuousToken(token, curve);
+    address token = address(new ERC20Managed(name, symbol));
+    ContinuousToken memory continuousToken = ContinuousToken(token, curve);
     continuousTokens[id] = continuousToken;
 
     emit NewContinuousToken(
@@ -54,6 +53,7 @@ contract ContinuousTokenFactory {
       name,
       curve
     );
+    return true;
   }
 
   event Buy(
@@ -61,8 +61,8 @@ contract ContinuousTokenFactory {
     string name,
     uint256 amount,
     uint256 price,
-    address buyer,
-  )
+    address buyer
+  );
 
   function buy(
     bytes32 id, 
@@ -70,7 +70,7 @@ contract ContinuousTokenFactory {
     uint256 maxPrice,
     address buyer
   ) external returns (bool) {
-    (ERC20Managed token, ICurve curve) = unpack(id);
+    (ERC20Managed token, Curve curve) = unpack(id);
 
     // Check price
     uint256 price = curve.price(token.totalSupply(), amount);
@@ -84,12 +84,12 @@ contract ContinuousTokenFactory {
 
     emit Buy(
       id,
-      token.name,
+      token.name(),
       amount,
       price,
-      to
-    )
-    return true
+      buyer
+    );
+    return true;
   }
 
   event Sell(
@@ -97,8 +97,8 @@ contract ContinuousTokenFactory {
     string name,
     uint256 amount,
     uint256 price,
-    uint256 seller
-  )
+    address seller
+  );
 
   function sell(
     bytes32 id,
@@ -106,8 +106,8 @@ contract ContinuousTokenFactory {
     uint256 minPrice,
     address seller
   ) external returns (bool) {
-    require(balanceOf(id, seller) >= amount, "ContinuousTokenFactory: seller holds too few tokens");
-    (ERC20Managed token, ICurve curve) = unpack(id);
+    (ERC20Managed token, Curve curve) = unpack(id);
+    require(token.balanceOf(seller) >= amount, "ContinuousTokenFactory: seller holds too few tokens");
 
     // Check price
     uint256 price = curve.price(token.totalSupply().sub(amount), amount);
@@ -121,25 +121,25 @@ contract ContinuousTokenFactory {
 
     emit Sell(
       id,
-      token.name,
+      token.name(),
       amount,
       price,
       seller
-    )
-    return true
+    );
+    return true;
   }
 
   // TODO portals to other ERC20 interface functions
 
   function totalSupply(bytes32 id) external view returns (uint256) {
     (ERC20Managed token, ) = unpack(id);
-    return token.totalSupply()
-  };
+    return token.totalSupply();
+  }
 
   function balanceOf(bytes32 id, address account) external view returns (uint256) {
     (ERC20Managed token, ) = unpack(id);
     return token.balanceOf(account);
-  };
+  }
 
   function approve(
     bytes32 id, 
@@ -148,7 +148,7 @@ contract ContinuousTokenFactory {
   ) external returns (bool) {
     (ERC20Managed token, ) = unpack(id);
     return token.approve(spender, amount);
-  };
+  }
 
   function allowance(
     bytes32 id,
@@ -166,7 +166,7 @@ contract ContinuousTokenFactory {
   ) external returns (bool) {
     (ERC20Managed token, ) = unpack(id);
     return token.transfer(recipient, amount);
-  };
+  }
 
   function transferFrom(
     bytes32 id,
@@ -182,16 +182,13 @@ contract ContinuousTokenFactory {
     return continuousTokens[id].token != address(0);
   }
 
-  function unpack(bytes32 id) internal view returns (
-    ERC20Managed token,
-    ICurve curve
-  ) {
+  function unpack(bytes32 id) internal view returns (ERC20Managed, Curve) {
     require(exists(id), "ContinuousTokenFactory: invalid id");
     ContinuousToken storage ct = continuousTokens[id];
     require(ct.token != address(0), "ContinuousTokenFactory: invalid token");
     require(ct.curve != address(0), "ContinuousTokenFactory: invalid curve");
-    ERC20Managed token = ERC20Managed(ct.token)
-    ICurve curve = ICurve(ct.curve)
-    return (token, curve)
+    ERC20Managed token = ERC20Managed(ct.token);
+    Curve curve = Curve(ct.curve);
+    return (token, curve);
   }
 }

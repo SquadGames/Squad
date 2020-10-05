@@ -22,9 +22,9 @@ describe('TokenClaimCheck', () => {
     // deploy contracts
     const TokenClaimCheck = await ethers.getContractFactory('TokenClaimCheck')
     tokenClaimCheck = await TokenClaimCheck.deploy('Token Claim Check', 'TCC')
-    const ManagedERC20 = await ethers.getContractFactory('ManagedERC20')
-    tokenA = await ManagedERC20.deploy('Token A', 'TA')
-    tokenB = await ManagedERC20.deploy('Token B', 'TB')
+    const ERC20Managed = await ethers.getContractFactory('ERC20Managed')
+    tokenA = await ERC20Managed.deploy('Token A', 'TA')
+    tokenB = await ERC20Managed.deploy('Token B', 'TB')
     await tokenClaimCheck.deployed()
     await tokenA.deployed()
     await tokenB.deployed()

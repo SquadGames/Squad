@@ -2,41 +2,41 @@
 
 const { expect, assert } = require('chai')
 
-describe('ManagedERC20', () => {
+describe('ERC20Managed', () => {
   let owner, alice
-  let managedERC20, managedERC20Alice
+  let erc20Managed, erc20ManagedAlice
 
   beforeEach(async () => {
     const wallets = await ethers.getSigners()
     owner = await wallets[0].getAddress()
     alice = await wallets[1].getAddress()
 
-    const ManagedERC20 = await ethers.getContractFactory('ManagedERC20')
-    managedERC20 = await ManagedERC20.deploy('test token name', 'TTN')
+    const ERC20Managed = await ethers.getContractFactory('ERC20Managed')
+    erc20Managed = await ERC20Managed.deploy('test token name', 'TTN')
 
-    managedERC20Alice = managedERC20.connect(wallets[1])
+    erc20ManagedAlice = erc20Managed.connect(wallets[1])
   })
 
   it('lets owner mint and burn tokens for accounts', async () => {
     // starts at zero
     assert(
-      (await managedERC20.balanceOf(alice)).eq(0),
+      (await erc20Managed.balanceOf(alice)).eq(0),
       'Incorrect starting balance'
     )
 
     // mint 100 for alice
-    await managedERC20.mint(alice, ethers.utils.parseEther('100'))
+    await erc20Managed.mint(alice, ethers.utils.parseEther('100'))
 
     // Alice should have 100
     assert(
-      (await managedERC20.balanceOf(alice)).eq(ethers.utils.parseEther('100')),
+      (await erc20Managed.balanceOf(alice)).eq(ethers.utils.parseEther('100')),
       'Incorrect balance after mint'
     )
   })
 
   it('No one else can mint or burn', async () => {
     await expect(
-      managedERC20Alice.mint(alice, ethers.utils.parseEther('1'))
+      erc20ManagedAlice.mint(alice, ethers.utils.parseEther('1'))
     ).to.be.revertedWith('Ownable: caller is not the owner')
   })
 })

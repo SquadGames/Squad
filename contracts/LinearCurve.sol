@@ -3,15 +3,15 @@
 pragma solidity >=0.6.0 <0.7.0;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "./ICurve.sol"
+import "./Curve.sol";
 
-contract LinearCurve is ICurve {
+contract LinearCurve is Curve {
   using SafeMath for uint256;
 
   constructor() public {}
 
   function price(uint256 supply, uint256 amount)
-      public
+      external
       override
       view
       returns (uint256)

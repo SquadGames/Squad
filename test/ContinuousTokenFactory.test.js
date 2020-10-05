@@ -14,7 +14,3 @@ describe('ContinuousTokenFactory', () => {
     assert(false, "Not Implemented")
   })
 })
-
-describe("ContinuousToken", () => {
-
-})
