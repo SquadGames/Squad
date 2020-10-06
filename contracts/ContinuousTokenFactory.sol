@@ -13,8 +13,8 @@ contract ContinuousTokenFactory {
   ERC20 public reserveToken;
 
   struct ContinuousToken {
-    address token;
-    address curve;
+    ERC20Managed token;
+    Curve curve;
   }
 
   mapping(bytes32 => ContinuousToken) public continuousTokens;
@@ -38,22 +38,22 @@ contract ContinuousTokenFactory {
     bytes32 id, 
     string memory name, 
     string memory symbol,
-    address curve
+    address _curve
   ) public returns (bool) {
-    require(!exists(id), "ContinuousTokenFactory: invalid id");
-    require(curve != address(0), "ContinuousTokenFactory: curve at address 0");
+    require(!exists(id), "ContinuousTokenFactory: continuous token already exists");
+    require(_curve != address(0), "ContinuousTokenFactory: curve at address 0");
     // TODO find a way to require a Curve contract be at curve
-    // require(Curve(curve).price(0, 1), "ContinuousTokenFactory: invalid curve");
 
-    address token = address(new ERC20Managed(name, symbol));
+    ERC20Managed token = new ERC20Managed(name, symbol);
+    Curve curve = Curve(_curve);
     ContinuousToken memory continuousToken = ContinuousToken(token, curve);
     continuousTokens[id] = continuousToken;
 
     emit NewContinuousToken(
       id,
-      token,
+      address(token),
       name,
-      curve
+      address(curve)
     );
     return true;
   }
@@ -66,13 +66,14 @@ contract ContinuousTokenFactory {
     address buyer
   );
 
-  function buy(
+  function _buy(
     bytes32 id, 
     uint256 amount,
     uint256 maxPrice,
     address buyer
-  ) external returns (bool) {
-    (ERC20Managed token, Curve curve) = unpack(id);
+  ) internal mustExist(id) returns (bool) {
+    ERC20Managed token = continuousTokens[id].token;
+    Curve curve = continuousTokens[id].curve;
 
     // Check price
     uint256 price = curve.price(token.totalSupply(), amount);
@@ -102,13 +103,14 @@ contract ContinuousTokenFactory {
     address seller
   );
 
-  function sell(
+  function _sell(
     bytes32 id,
     uint256 amount,
     uint256 minPrice,
     address seller
-  ) external returns (bool) {
-    (ERC20Managed token, Curve curve) = unpack(id);
+  ) internal mustExist(id) returns (bool) {
+    ERC20Managed token = continuousTokens[id].token;
+    Curve curve = continuousTokens[id].curve;
     require(token.balanceOf(seller) >= amount, "ContinuousTokenFactory: seller holds too few tokens");
 
     // Check price
@@ -135,71 +137,21 @@ contract ContinuousTokenFactory {
     bytes32 id, 
     uint256 supply, 
     uint256 units
-  ) external view returns (uint256) {
-    ( , Curve curve) = unpack(id);
+  ) external view mustExist(id) returns (uint256) {
+    Curve curve = continuousTokens[id].curve;
     return curve.price(supply, units);
   }
 
-  // TODO portals to other ERC20 interface functions
-
-  function totalSupply(bytes32 id) external view returns (uint256) {
-    (ERC20Managed token, ) = unpack(id);
-    return token.totalSupply();
+  function tokenAddress(bytes32 id) external view mustExist(id) returns (address) {
+    return address(continuousTokens[id].token);
   }
 
-  function balanceOf(bytes32 id, address account) external view returns (uint256) {
-    (ERC20Managed token, ) = unpack(id);
-    return token.balanceOf(account);
+  function exists(bytes32 id) public view returns (bool) {
+    return address(continuousTokens[id].token) != address(0);
   }
 
-  function approve(
-    bytes32 id, 
-    address spender, 
-    uint256 amount
-  ) external returns (bool) {
-    (ERC20Managed token, ) = unpack(id);
-    return token.approve(spender, amount);
-  }
-
-  function allowance(
-    bytes32 id,
-    address owner, 
-    address spender
-  ) external view returns (uint256) {
-    (ERC20Managed token, ) = unpack(id);
-    return token.allowance(owner, spender);
-  }
-
-  function transfer(
-    bytes32 id, 
-    address recipient, 
-    uint256 amount
-  ) external returns (bool) {
-    (ERC20Managed token, ) = unpack(id);
-    return token.transfer(recipient, amount);
-  }
-
-  function transferFrom(
-    bytes32 id,
-    address sender, 
-    address recipient, 
-    uint256 amount
-  ) external returns (bool) {
-    (ERC20Managed token, ) = unpack(id);
-    return token.transferFrom(sender, recipient, amount);
-  }
-
-  function exists(bytes32 id) internal view returns (bool) {
-    return continuousTokens[id].token != address(0);
-  }
-
-  function unpack(bytes32 id) internal view returns (ERC20Managed, Curve) {
-    require(exists(id), "ContinuousTokenFactory: invalid id");
-    ContinuousToken storage ct = continuousTokens[id];
-    require(ct.token != address(0), "ContinuousTokenFactory: invalid token");
-    require(ct.curve != address(0), "ContinuousTokenFactory: invalid curve");
-    ERC20Managed token = ERC20Managed(ct.token);
-    Curve curve = Curve(ct.curve);
-    return (token, curve);
+  modifier mustExist(bytes32 id) {
+    require(exists(id), "ContinuousTokenFactory: continuous token does not exist");
+    _;
   }
 }
