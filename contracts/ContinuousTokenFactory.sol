@@ -63,34 +63,40 @@ contract ContinuousTokenFactory {
     string name,
     uint256 amount,
     uint256 price,
-    address buyer
+    address buyer,
+    address owner
   );
 
   function _buy(
-    bytes32 id, 
+    bytes32 id,
     uint256 amount,
     uint256 maxPrice,
-    address buyer
+    address buyer,
+    address owner
   ) internal mustExist(id) returns (bool) {
     ERC20Managed token = continuousTokens[id].token;
     Curve curve = continuousTokens[id].curve;
 
     // Check price
     uint256 price = curve.price(token.totalSupply(), amount);
-    require(price <= maxPrice, "ContinuousTokenFactory: price greater than maxPrice");
+    require(
+            price <= maxPrice,
+            "ContinuousTokenFactory: price greater than maxPrice"
+            );
 
     // Transfer and mint
     require(
       reserveToken.transferFrom(buyer, address(this), price)
     );
-    token.mint(buyer, amount);
+    token.mint(owner, amount);
 
     emit Buy(
       id,
       token.name(),
       amount,
       price,
-      buyer
+      buyer,
+      owner
     );
     return true;
   }
@@ -133,11 +139,13 @@ contract ContinuousTokenFactory {
     return true;
   }
 
+  // TODO Consider changing this to priceOf to avoid confusion with
+  // price variables in function bodies
   function price(
     bytes32 id, 
     uint256 supply, 
     uint256 units
-  ) external view mustExist(id) returns (uint256) {
+  ) public view mustExist(id) returns (uint256) {
     Curve curve = continuousTokens[id].curve;
     return curve.price(supply, units);
   }

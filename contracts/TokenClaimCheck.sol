@@ -39,7 +39,7 @@ contract TokenClaimCheck is ERC721 {
         address from,
         address token,
         string memory tokenURI
-    ) public {
+                  ) public returns (uint256) {
         require(amount > 0, "TokenClaimCheck: claim zero amount");
         require(
             token != address(0),
@@ -59,6 +59,7 @@ contract TokenClaimCheck is ERC721 {
         _setTokenURI(newClaimId, tokenURI);
 
         emit Mint(to, amount, from, token, tokenURI);
+        return newClaimId;
     }
 
     event Redeem(uint256 claimId, uint256 amount, address owner);
