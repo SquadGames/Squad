@@ -13,19 +13,17 @@ contract ContinuousTokenFactoryMock is ContinuousTokenFactory {
     function buy(
         bytes32 id,
         uint256 amount,
-        uint256 maxPrice,
         address buyer,
         address owner
     ) external returns (bool) {
-        _buy(id, amount, maxPrice, buyer, owner);
+        _buy(id, amount, buyer, owner);
     }
 
     function sell(
         bytes32 id,
         uint256 amount,
-        uint256 minPrice,
         address seller
     ) external returns (bool) {
-        _sell(id, amount, minPrice, seller);
+        _sell(id, amount, seller);
     }
 }

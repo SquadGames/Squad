@@ -35,8 +35,8 @@ contract ContinuousTokenFactory {
   );
 
   function newContinuousToken(
-    bytes32 id, 
-    string memory name, 
+    bytes32 id,
+    string memory name,
     string memory symbol,
     address _curve
   ) public returns (bool) {
@@ -59,7 +59,7 @@ contract ContinuousTokenFactory {
   }
 
   event Buy(
-    bytes32 id, 
+    bytes32 id,
     string name,
     uint256 amount,
     uint256 price,
@@ -70,7 +70,6 @@ contract ContinuousTokenFactory {
   function _buy(
     bytes32 id,
     uint256 amount,
-    uint256 maxPrice,
     address buyer,
     address owner
   ) internal mustExist(id) returns (bool) {
@@ -79,10 +78,6 @@ contract ContinuousTokenFactory {
 
     // Check price
     uint256 price = curve.price(token.totalSupply(), amount);
-    require(
-            price <= maxPrice,
-            "ContinuousTokenFactory: price greater than maxPrice"
-            );
 
     // Transfer and mint
     require(
@@ -112,16 +107,17 @@ contract ContinuousTokenFactory {
   function _sell(
     bytes32 id,
     uint256 amount,
-    uint256 minPrice,
     address seller
   ) internal mustExist(id) returns (bool) {
     ERC20Managed token = continuousTokens[id].token;
     Curve curve = continuousTokens[id].curve;
-    require(token.balanceOf(seller) >= amount, "ContinuousTokenFactory: seller holds too few tokens");
+    require(
+            token.balanceOf(seller) >= amount,
+            "ContinuousTokenFactory: seller holds too few tokens"
+            );
 
     // Check price
     uint256 price = curve.price(token.totalSupply().sub(amount), amount);
-    require(price >= minPrice, "ContinuousTokenFactory: price less than minPrice");
 
     // Burn and transfer
     token.burn(seller, amount);
@@ -142,8 +138,8 @@ contract ContinuousTokenFactory {
   // TODO Consider changing this to priceOf to avoid confusion with
   // price variables in function bodies
   function price(
-    bytes32 id, 
-    uint256 supply, 
+    bytes32 id,
+    uint256 supply,
     uint256 units
   ) public view mustExist(id) returns (uint256) {
     Curve curve = continuousTokens[id].curve;

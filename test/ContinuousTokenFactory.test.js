@@ -60,21 +60,20 @@ describe('ContinuousTokenFactory', () => {
     assert(bobBalance.eq(0), "Bob's starting balance not 0")
 
     const buyAmount = ethers.constants.WeiPerEther.mul(10)
-    const maxPrice = await factoryBob.price(id, 0, buyAmount)
+    let price = await factoryBob.price(id, 0, buyAmount)
 
-    await reserveToken.mint(bob, maxPrice)
-    await reserveBob.approve(factoryBob.address, maxPrice)
+    await reserveToken.mint(bob, price)
+    await reserveBob.approve(factoryBob.address, price)
     await expect(factoryBob.buy(
       id,
       buyAmount,
-      maxPrice,
       bob,
       bob,
     )).to.emit(factoryBob, 'Buy').withArgs(
       id,
       name,
       buyAmount,
-      maxPrice,
+      price,
       bob,
       bob,
     )
@@ -84,18 +83,17 @@ describe('ContinuousTokenFactory', () => {
     // sell tokens
     const sellAmount = ethers.constants.WeiPerEther.mul(8)
     const expectedSupply = (await token.totalSupply()).sub(sellAmount)
-    const minPrice = await factoryBob.price(id, expectedSupply, sellAmount)
+    price = await factoryBob.price(id, expectedSupply, sellAmount)
 
     await expect(factoryBob.sell(
       id,
       sellAmount,
-      minPrice,
       bob
     )).to.emit(factoryBob, 'Sell').withArgs(
       id,
       name,
       sellAmount,
-      minPrice,
+      price,
       bob
     )
     bobBalance = await token.balanceOf(bob)
