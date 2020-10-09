@@ -8,7 +8,7 @@ describe('SquadController', () => {
   let owner, alice, bob, treasury
   let squadController, reserveToken, curve, claimCheck
   let squadAlice, squadBob, squadTreasury, claimCheckBob, reserveTokenBob
-  let aliceId, aliceTokenName
+  let aliceId, aliceTokenName, aliceFee
 
   const networkFee = 100
   const maxNetworkFee = 1000
@@ -26,17 +26,18 @@ describe('SquadController', () => {
     const ClaimCheck = await ethers.getContractFactory('TokenClaimCheck')
     claimCheck = await ClaimCheck.deploy('Test Claim Check', 'TCC')
 
+    const Curve = await ethers.getContractFactory('LinearCurve')
+    curve = await Curve.deploy()
+
     const SquadController = await ethers.getContractFactory('SquadController')
     squadController = await SquadController.deploy(
       reserveToken.address,
       claimCheck.address,
       networkFee,
       maxNetworkFee,
-      treasury
+      treasury,
+      curve.address
     )
-
-    const Curve = await ethers.getContractFactory('LinearCurve')
-    curve = await Curve.deploy()
 
     squadAlice = squadController.connect(Alice)
     squadBob = squadController.connect(Bob)
@@ -45,11 +46,10 @@ describe('SquadController', () => {
     reserveTokenBob = reserveToken.connect(Bob)
 
     aliceId = ethers.utils.formatBytes32String('aliceId')
-    const aliceFee = ethers.BigNumber.from('200')
+    aliceFee = ethers.BigNumber.from('200')
     const alicePurchasePrice = ethers.utils.parseEther('10')
     aliceTokenName = 'Contribution A'
     const symbol = 'CA'
-    const contributionURI = `squad.games/contributions/${aliceId}`
     const metadata = JSON.stringify({ name: aliceTokenName, symbol, a: 'a' })
     await expect(
       squadAlice.newContribution(
@@ -57,10 +57,8 @@ describe('SquadController', () => {
         alice,
         aliceFee,
         alicePurchasePrice,
-        curve.address,
         aliceTokenName,
         symbol,
-        contributionURI,
         metadata
       )
     ).to.emit(squadController, 'NewContribution')
@@ -114,7 +112,6 @@ describe('SquadController', () => {
         aliceId,
         amount,
         maxPrice,
-        "test/token/uri",
       )
     ).to.emit(squadController, 'BuyLicense')
 
@@ -141,7 +138,6 @@ describe('SquadController', () => {
         doesNotExistId,
         0,
         0,
-        "test/token/uri",
       )
     ).to.be.revertedWith(
       "ContinuousTokenFactory: continuous token does not exist"
@@ -151,22 +147,66 @@ describe('SquadController', () => {
   it('Owner sets the network fee up to the limit', async () => {
     const aboveMaxNetworkFee = maxNetworkFee + 1
     await expect(
-      squadController.setNetworkFee(networkFee, aboveMaxNetworkFee)
+      squadController.setNetworkFeeRate(networkFee, aboveMaxNetworkFee)
     ).to.be.revertedWith("SquadController: cannot set fee higer than max")
     await expect(
-      squadAlice.setNetworkFee(networkFee, maxNetworkFee)
+      squadAlice.setNetworkFeeRate(networkFee, maxNetworkFee)
     ).to.be.revertedWith("Ownable: caller is not the owner")
     await expect(
-      squadController.setNetworkFee(networkFee, maxNetworkFee)
-    ).to.emit(squadController, "SetNetworkFee").withArgs(networkFee, maxNetworkFee)
+      squadController.setNetworkFeeRate(networkFee, maxNetworkFee)
+    ).to.emit(squadController, "SetNetworkFeeRate").withArgs(networkFee, maxNetworkFee)
     assert(
-      await squadController.networkFee() == maxNetworkFee,
+      await squadController.networkFeeRate() == maxNetworkFee,
       "Network fee failed to set"
     )
   })
 
   it('Beneficiary withdraws their fee and pays network fee', async () => {
-    assert(false)
+    await expect(
+      squadAlice.withdraw(alice)
+    ).to.be.revertedWith("SquadController: nothing to withdraw")
+
+    let { amount, maxPrice, aliceContinuousToken } = await setUpForBuyLicense()
+    await squadBob.buyLicense(
+      aliceId,
+      amount,
+      maxPrice,
+    )
+
+    // network fee is 100
+    // alice fee is 200
+
+    const purchasePrice = await squadController.price(aliceId, 0, amount)
+    const aliceAccount = purchasePrice.mul(aliceFee).div(10000).add(
+      purchasePrice.mul(aliceFee).mod(10000)
+    )
+    const networkFeePaid = aliceAccount.mul(networkFee).div(10000).add(
+      aliceAccount.mul(networkFee).mod(10000)
+    )
+    const withdrawAmount = aliceAccount.sub(networkFeePaid)
+
+    const balanceBefore = await reserveToken.balanceOf(alice)
+    const treasuryBalanceBefore = await reserveToken.balanceOf(treasury)
+
+    await expect(
+      squadAlice.withdraw(alice)
+    ).to.emit(squadController, "Withdraw").withArgs(
+      alice,
+      withdrawAmount,
+      networkFeePaid,
+    )
+
+    // confirm alice got paid
+    expect(
+      (await reserveToken.balanceOf(alice)).sub(balanceBefore).eq(withdrawAmount),
+      "incorrect balance after withdraw"
+    )
+
+    // confirm treasury got paid
+    expect(
+      (await reserveToken.balanceOf(treasury)).sub(balanceBefore).eq(networkFeePaid),
+      "incorrect balance after withdraw"
+    )
   })
 
   it('Buys back contribution tokens', async () => {

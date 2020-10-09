@@ -50,7 +50,6 @@ describe('TokenClaimCheck', () => {
     async () => {
       // Alice deposits 20 A for a claim
       const aliceDeposit = ethers.utils.parseEther('20')
-      const aliceClaimURI = 'test/aliceClaimURI'
       await tokenAAlice.approve(tokenClaimCheck.address, aliceDeposit)
       await expect(
         tccAlice.mint(
@@ -58,14 +57,12 @@ describe('TokenClaimCheck', () => {
           aliceDeposit, // amount
           alice, // from
           tokenA.address, // token
-          aliceClaimURI // tokenURI
         )
       ).to.emit(tccAlice, 'Mint').withArgs(
         alice,
         aliceDeposit,
         alice,
         tokenA.address,
-        aliceClaimURI
       )
 
       // Alice should have 80 token A and 0 token B
@@ -75,14 +72,12 @@ describe('TokenClaimCheck', () => {
 
       // Bob deposits 70 B for a claim
       const bobDeposit = ethers.utils.parseEther('70')
-      const bobClaimURI = 'test/bobClaimURI'
       await tokenBBob.approve(tokenClaimCheck.address, bobDeposit)
       await tccBob.mint(
         bob,
         bobDeposit,
         bob,
         tokenB.address,
-        bobClaimURI
       )
 
       // Bob should have 30 token B and 0 token A

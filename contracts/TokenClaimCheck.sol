@@ -29,16 +29,14 @@ contract TokenClaimCheck is ERC721 {
         address to,
         uint256 amount,
         address from,
-        address token,
-        string tokenURI
+        address token
     );
 
     function mint(
         address to,
         uint256 amount,
         address from,
-        address token,
-        string memory tokenURI
+        address token
                   ) public returns (uint256) {
         require(amount > 0, "TokenClaimCheck: claim zero amount");
         require(
@@ -56,9 +54,8 @@ contract TokenClaimCheck is ERC721 {
 
         // Mint the claim check
         _mint(to, newClaimId);
-        _setTokenURI(newClaimId, tokenURI);
 
-        emit Mint(to, amount, from, token, tokenURI);
+        emit Mint(to, amount, from, token);
         return newClaimId;
     }
 
