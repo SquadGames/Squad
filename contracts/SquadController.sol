@@ -9,26 +9,23 @@ import "./ERC20Managed.sol";
 import "./TokenClaimCheck.sol";
 import "./ContinuousTokenFactory.sol";
 import "./Curve.sol";
+import "./Accounting.sol";
+import "./FeeLib.sol";
 import "@nomiclabs/buidler/console.sol";
 
-contract SquadController is Ownable, ContinuousTokenFactory {
+contract SquadController is Ownable {
     using SafeMath for uint256;
     using SafeMath for uint16;
 
     TokenClaimCheck public tokenClaimCheck;
     Curve public curve;
+    Accounting public accounting;
+    ContinuousTokenFactory public tokenFactory;
 
     uint16 public networkFeeRate; // in basis points
     uint16 public maxNetworkFee; // in basis points
 
-    struct FeeSplit {
-        uint256 fee;
-        uint256 remainder;
-    }
-
     address public treasury;
-    mapping(address => uint256) public accounts;
-    uint256 accountsTotal;
 
     struct Contribution {
         address beneficiary;
@@ -40,20 +37,16 @@ contract SquadController is Ownable, ContinuousTokenFactory {
     mapping(uint256 => bytes32) public validLicenses;
 
     constructor (
-                 address _reserveToken,
+                 address reserveToken,
                  address _tokenClaimCheck,
                  uint16 _networkFeeRate,
                  uint16 _maxNetworkFee,
                  address _treasury,
                  address _curve
-                 ) public ContinuousTokenFactory(_reserveToken) {
+                 ) public {
         require(
                 _treasury != address(0),
                 "SquadController: zero treasury address"
-                );
-        require(
-                _tokenClaimCheck != address(0),
-                "SquadController: zero TokenClaimCheck address"
                 );
         require(
                 _curve != address(0),
@@ -71,7 +64,10 @@ contract SquadController is Ownable, ContinuousTokenFactory {
         maxNetworkFee = _maxNetworkFee;
         treasury = _treasury;
         tokenClaimCheck = TokenClaimCheck(_tokenClaimCheck);
+        tokenFactory = new ContinuousTokenFactory(reserveToken);
+        accounting = new Accounting();
         curve = Curve(_curve);
+
     }
 
     event NewContribution(
@@ -96,11 +92,11 @@ contract SquadController is Ownable, ContinuousTokenFactory {
         require(!exists(contributionId), "SquadController: contribution already exists");
         require(beneficiary != address(0), "SquadController: zero beneficiary address");
 
-        newContinuousToken(contributionId, name, symbol, address(curve));
+        tokenFactory.newContinuousToken(contributionId, name, symbol, address(curve));
 
         contributions[contributionId] = Contribution(beneficiary, fee, purchasePrice);
 
-        address tokenAddress = address(continuousTokens[contributionId].token);
+        address tokenAddress = address(tokenFactory.tokenAddress(contributionId));
 
         emit NewContribution(
                              msg.sender,
@@ -127,7 +123,7 @@ contract SquadController is Ownable, ContinuousTokenFactory {
                  uint256 amount,
                  uint256 maxPrice
                  ) external mustExist(contributionId) {
-        ERC20 token = continuousTokens[contributionId].token;
+        ERC20 token = ERC20(tokenFactory.tokenAddress(contributionId));
         uint256 supply = token.totalSupply();
         uint256 totalPrice = price(contributionId, supply, amount);
         Contribution memory contribution = contributions[contributionId];
@@ -142,15 +138,13 @@ contract SquadController is Ownable, ContinuousTokenFactory {
                 );
 
         // buy `amount` of the continuous token to be claimed by this license
-        _buy(contributionId, amount, msg.sender, address(this));
+        tokenFactory.buy(contributionId, amount, msg.sender, address(this));
 
-        // TODO factor this out to reduce the size of the stack
-        FeeSplit memory feeSplit = _calculateFeeSplit(contribution.fee, totalPrice);
-        accounts[contribution.beneficiary] = accounts[contribution.beneficiary].add(feeSplit.fee);
-        accountsTotal = accountsTotal.add(feeSplit.fee);
+        FeeLib.FeeSplit memory feeSplit = FeeLib.calculateFeeSplit(contribution.fee, totalPrice);
+        accounting.credit(contribution.beneficiary, feeSplit.fee);
 
         // Create a license to claim those tokens check for the caller
-        continuousTokens[contributionId].token.approve(address(tokenClaimCheck), amount);
+        token.approve(address(tokenClaimCheck), amount);
         uint256 licenseId = tokenClaimCheck.mint(
                              msg.sender,
                              amount,
@@ -161,7 +155,7 @@ contract SquadController is Ownable, ContinuousTokenFactory {
         // record valid license
         validLicenses[licenseId] = contributionId;
 
-        string memory contributionTokenName = continuousTokens[contributionId].token.name();
+        string memory contributionTokenName = token.name();
         BuyLicense(
                    msg.sender,
                    contributionId,
@@ -177,10 +171,23 @@ contract SquadController is Ownable, ContinuousTokenFactory {
                           uint256 licenseId,
                           address account
                           ) external view mustExist(contributionId) returns (bool) {
-        if(validLicenses[licenseId] != contributionId) {
+        if(validLicenses[licenseId] != contributionId || !tokenClaimCheck.exists(licenseId)) {
             return false;
         }
         return account == tokenClaimCheck.ownerOf(licenseId);
+    }
+
+    function sellContinuousTokens(
+                                  bytes32 contributionId,
+                                  uint256 amount,
+                                  uint256 minPrice
+                                  ) public mustExist(contributionId) {
+        uint256 supply = tokenFactory.totalSupply(contributionId);
+        require(
+                price(contributionId, supply.sub(amount), supply) >= minPrice,
+                "SquadController: sale price lower than min price"
+                );
+        tokenFactory.sell(contributionId, amount, msg.sender);
     }
 
     event SetNetworkFeeRate(uint16 from, uint16 to);
@@ -205,40 +212,44 @@ contract SquadController is Ownable, ContinuousTokenFactory {
                    );
 
     function withdraw(address account) public {
-        require(accounts[account] > 0, "SquadController: nothing to withdraw");
-        FeeSplit memory feeSplit = _calculateFeeSplit(networkFeeRate, accounts[account]);
+        require(accounting.total(account) > 0, "SquadController: nothing to withdraw");
+        FeeLib.FeeSplit memory feeSplit = FeeLib.calculateFeeSplit(networkFeeRate, accounting.total(account));
         uint256 withdrawAmount = feeSplit.remainder;
 
         // transfer to account address
-        reserveToken.transfer(account, withdrawAmount);
+        tokenFactory.transferReserve(account, withdrawAmount);
 
         // transfer to treasury
-        reserveToken.transfer(treasury, feeSplit.fee);
+        tokenFactory.transferReserve(treasury, feeSplit.fee);
 
         emit Withdraw(account, withdrawAmount, feeSplit.fee);
     }
 
-    function _calculateFeeSplit(uint16 basisPoints, uint256 total)
-        internal
-        pure
-        returns (FeeSplit memory)
-    {
-        uint256 fee;
-        uint256 dust;
-        uint256 remainder;
-        fee = total.mul(basisPoints).div(10000);
-        dust = total.mul(basisPoints).mod(10000);
-        fee = fee + dust;
-        remainder = total - fee;
-        return FeeSplit(fee, remainder);
-    }
-
     function reserveDust() public view returns (uint256) {
-        return reserveToken.balanceOf(address(this)).sub(accountsTotal);
+        return tokenFactory.reserveBalanceOf(address(this)).sub(accounting.accountsTotal());
     }
 
     function recoverReserveDust() public {
-        reserveToken.transfer(treasury, reserveDust());
+        tokenFactory.transferReserve(treasury, reserveDust());
+    }
+
+    function price(bytes32 contributionId, uint256 supply, uint256 amount) public view returns (uint256) {
+        return tokenFactory.price(contributionId, supply, amount);
+    }
+
+    function tokenAddress(bytes32 contributionId) public view returns (address) {
+        ERC20Managed token;
+        (token, ) = tokenFactory.continuousTokens(contributionId);
+        return address(token);
+    }
+
+    function exists(bytes32 contributionId) public view returns (bool) {
+        return contributions[contributionId].beneficiary != address(0);
+    }
+
+    modifier mustExist(bytes32 contributionId) {
+        require(exists(contributionId), "SquadController: contribution does not exist");
+        _;
     }
 
 

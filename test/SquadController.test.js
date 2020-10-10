@@ -88,9 +88,9 @@ describe('SquadController', () => {
 
   async function setUpForBuyLicense() {
     const aliceContribution = await squadBob.contributions(aliceId)
-    const aliceContinuousToken = await squadBob.continuousTokens(aliceId)
+    const aliceContinuousToken = await squadBob.tokenAddress(aliceId)
     const aliceToken = new ethers.Contract(
-      aliceContinuousToken.token,
+      aliceContinuousToken,
       reserveToken.interface,
       Alice
     )
@@ -101,8 +101,8 @@ describe('SquadController', () => {
       ethers.utils.parseEther('0.001')
     )
     await reserveToken.mint(bob, maxPrice)
-    await reserveTokenBob.approve(squadController.address, maxPrice)
-    return { amount, maxPrice, aliceContinuousToken }
+    await reserveTokenBob.approve(await squadController.tokenFactory(), maxPrice)
+    return { amount, maxPrice, aliceContinuousToken, aliceToken }
   }
 
   it('Sells license NFTs for the purchase price to buyers', async () => {
@@ -122,12 +122,19 @@ describe('SquadController', () => {
     // Bobs NFT should claim `amount` of `aliceContinuousToken`
     const bobsClaim = await claimCheckBob.claims(bobsNFTid)
     assert(bobsClaim.amount.eq(amount), 'NFT claims wrong amount')
-    assert(bobsClaim.token === aliceContinuousToken.token, 'NFT claims wrong token')
+    assert(bobsClaim.token === aliceContinuousToken, 'NFT claims wrong token')
 
     // Controller should report that Bob is a license holder
     assert(
       await squadAlice.holdsLicense(aliceId, bobsNFTid, bob),
       'Controller misreports license holder'
+    )
+
+    // after redeeming the license they shouldn't hold the license
+    claimCheckBob.redeem(bobsNFTid)
+    assert(
+      !(await squadAlice.holdsLicense(aliceId, bobsNFTid, bob)),
+      'Controller misreports holding license after redeem'
     )
   })
 
@@ -140,7 +147,7 @@ describe('SquadController', () => {
         0,
       )
     ).to.be.revertedWith(
-      "ContinuousTokenFactory: continuous token does not exist"
+      "SquadController: contribution does not exist"
     )
   })
 
@@ -209,7 +216,25 @@ describe('SquadController', () => {
     )
   })
 
-  it('Buys back contribution tokens', async () => {
-    assert(false)
+  it('buys back contribution tokens', async () => {
+    let { amount, maxPrice, aliceToken } = await setUpForBuyLicense()
+    await squadBob.buyLicense(
+      aliceId,
+      amount,
+      maxPrice,
+    )
+    assert(
+      (await aliceToken.balanceOf(bob)).eq(0),
+      "Incorrect Token A balance before redeem",
+    )
+    await claimCheckBob.redeem(1)
+    assert(
+      (await aliceToken.balanceOf(bob)).eq(amount),
+      "Incorrect Token A balance after redeem",
+    )
+    const balanceBefore = await reserveToken.balanceOf(bob)
+    const price = await squadBob.price(aliceId, 0, amount)
+    await squadBob.sellContinuousTokens(aliceId, amount, price)
+    assert((await reserveToken.balanceOf(bob)).eq(price.add(balanceBefore)))
   })
 })

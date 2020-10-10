@@ -24,7 +24,7 @@ describe('ContinuousTokenFactory', () => {
     reserveToken = await ERC20Managed.deploy('reserve token', 'RSV')
     const LinearCurve = await ethers.getContractFactory('LinearCurve')
     linearCurve = await LinearCurve.deploy()
-    const ContinuousTokenFactory = await ethers.getContractFactory('ContinuousTokenFactoryMock')
+    const ContinuousTokenFactory = await ethers.getContractFactory('ContinuousTokenFactory')
     continuousTokenFactory = await ContinuousTokenFactory.deploy(reserveToken.address)
     await reserveToken.deployed()
     await linearCurve.deployed()
@@ -42,62 +42,62 @@ describe('ContinuousTokenFactory', () => {
   it('allows creating, buying, and selling tokens', async () => {
     const name = 'alice coin'
     const id = ethers.utils.formatBytes32String(name)
-    await expect(factoryAlice.newContinuousToken(
+    await factoryAlice.newContinuousToken(
       id,
       name,
       'ALC',
       linearCurve.address
-    )).to.emit(factoryAlice, 'NewContinuousToken')
+    )
     const tokenAddress = await factoryAlice.tokenAddress(id)
-    const token = new ethers.Contract(tokenAddress, reserveToken.interface, Bob)
+    const token = new ethers.Contract(tokenAddress, reserveToken.interface, Owner)
     assert(
       (await token.totalSupply()).eq(0),
       'New token not created successfully'
     )
 
     // buy tokens
-    let bobBalance = await token.balanceOf(bob)
-    assert(bobBalance.eq(0), "Bob's starting balance not 0")
+    let ownerBalance = await token.balanceOf(owner)
+    assert(ownerBalance.eq(0), "Owner's starting balance not 0")
 
     const buyAmount = ethers.constants.WeiPerEther.mul(10)
-    let price = await factoryBob.price(id, 0, buyAmount)
+    let price = await factoryOwner.price(id, 0, buyAmount)
 
-    await reserveToken.mint(bob, price)
-    await reserveBob.approve(factoryBob.address, price)
-    await expect(factoryBob.buy(
+    await reserveToken.mint(owner, price)
+    await reserveOwner.approve(factoryOwner.address, price)
+    await expect(factoryOwner.buy(
       id,
       buyAmount,
-      bob,
-      bob,
-    )).to.emit(factoryBob, 'Buy').withArgs(
+      owner,
+      owner,
+    )).to.emit(factoryOwner, 'Buy').withArgs(
       id,
       name,
       buyAmount,
       price,
-      bob,
-      bob,
+      owner,
+      owner,
     )
-    bobBalance = await token.balanceOf(bob)
-    assert(bobBalance.eq(buyAmount), "Bob's post-buy balance not buy amount")
+    ownerBalance = await token.balanceOf(owner)
+    assert(ownerBalance.eq(buyAmount), "Owner's post-buy balance not buy amount")
 
     // sell tokens
     const sellAmount = ethers.constants.WeiPerEther.mul(8)
     const expectedSupply = (await token.totalSupply()).sub(sellAmount)
-    price = await factoryBob.price(id, expectedSupply, sellAmount)
+    price = await factoryOwner.price(id, expectedSupply, sellAmount)
 
-    await expect(factoryBob.sell(
+    await expect(factoryOwner.sell(
       id,
       sellAmount,
-      bob
-    )).to.emit(factoryBob, 'Sell').withArgs(
+      owner
+    )).to.emit(factoryOwner, 'Sell').withArgs(
       id,
       name,
       sellAmount,
       price,
-      bob
+      owner
     )
-    bobBalance = await token.balanceOf(bob)
-    assert(bobBalance.eq(expectedSupply), 'Sell failed')
+    ownerBalance = await token.balanceOf(owner)
+    assert(ownerBalance.eq(expectedSupply), 'Sell failed')
   })
 
   it.skip("can buy for others", () => {

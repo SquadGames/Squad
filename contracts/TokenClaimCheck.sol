@@ -82,4 +82,8 @@ contract TokenClaimCheck is ERC721 {
 
         emit Redeem(claimId, claim.amount, claimOwner);
     }
+
+    function exists(uint256 claimId) external view returns (bool){
+        return _exists(claimId);
+    }
 }

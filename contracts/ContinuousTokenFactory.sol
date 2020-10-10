@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./ERC20Managed.sol";
 import "./Curve.sol";
 
-contract ContinuousTokenFactory {
+contract ContinuousTokenFactory is Ownable {
   using SafeMath for uint256;
 
   ERC20 public reserveToken;
@@ -67,12 +67,12 @@ contract ContinuousTokenFactory {
     address owner
   );
 
-  function _buy(
+  function buy(
     bytes32 id,
     uint256 amount,
     address buyer,
     address owner
-  ) internal mustExist(id) returns (bool) {
+  ) external onlyOwner mustExist(id) returns (bool) {
     ERC20Managed token = continuousTokens[id].token;
     Curve curve = continuousTokens[id].curve;
 
@@ -104,11 +104,11 @@ contract ContinuousTokenFactory {
     address seller
   );
 
-  function _sell(
+  function sell(
     bytes32 id,
     uint256 amount,
     address seller
-  ) internal mustExist(id) returns (bool) {
+  ) external mustExist(id) onlyOwner returns (bool) {
     ERC20Managed token = continuousTokens[id].token;
     Curve curve = continuousTokens[id].curve;
     require(
@@ -135,6 +135,14 @@ contract ContinuousTokenFactory {
     return true;
   }
 
+  function transferReserve(address to, uint256 amount) public onlyOwner returns(bool){
+      return reserveToken.transfer(to, amount);
+  }
+
+  function reserveBalanceOf(address account) public view returns (uint256) {
+      return reserveToken.balanceOf(account);
+  }
+
   // TODO Consider changing this to priceOf to avoid confusion with
   // price variables in function bodies
   function price(
@@ -144,6 +152,10 @@ contract ContinuousTokenFactory {
   ) public view mustExist(id) returns (uint256) {
     Curve curve = continuousTokens[id].curve;
     return curve.price(supply, units);
+  }
+
+  function totalSupply(bytes32 id) public view returns (uint256) {
+      return continuousTokens[id].token.totalSupply();
   }
 
   function tokenAddress(bytes32 id) external view mustExist(id) returns (address) {
