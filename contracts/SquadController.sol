@@ -36,30 +36,27 @@ contract SquadController is Ownable {
 
     mapping(uint256 => bytes32) public validLicenses;
 
-    constructor (
-                 address reserveToken,
-                 address _tokenClaimCheck,
-                 uint16 _networkFeeRate,
-                 uint16 _maxNetworkFee,
-                 address _treasury,
-                 address _curve
-                 ) public {
+    constructor(
+        address reserveToken,
+        address _tokenClaimCheck,
+        uint16 _networkFeeRate,
+        uint16 _maxNetworkFee,
+        address _treasury,
+        address _curve
+    ) public {
         require(
-                _treasury != address(0),
-                "SquadController: zero treasury address"
-                );
+            _treasury != address(0),
+            "SquadController: zero treasury address"
+        );
+        require(_curve != address(0), "SquadController: zero Curve address");
         require(
-                _curve != address(0),
-                "SquadController: zero Curve address"
-                );
+            _maxNetworkFee <= 10000,
+            "SquadController: max network fee > 100%"
+        );
         require(
-                _maxNetworkFee <= 10000,
-                "SquadController: max network fee > 100%"
-                );
-        require(
-                _networkFeeRate <= _maxNetworkFee,
-                "SquadController: network gee > max"
-                );
+            _networkFeeRate <= _maxNetworkFee,
+            "SquadController: network gee > max"
+        );
         networkFeeRate = _networkFeeRate;
         maxNetworkFee = _maxNetworkFee;
         treasury = _treasury;
@@ -67,126 +64,148 @@ contract SquadController is Ownable {
         tokenFactory = new ContinuousTokenFactory(reserveToken);
         accounting = new Accounting();
         curve = Curve(_curve);
-
     }
 
     event NewContribution(
-                          address contributor,
-                          bytes32 contributionId,
-                          address beneficiary,
-                          uint16 fee,
-                          uint256 purchasePrice,
-                          address continuousToken,
-                          string metadata
-                          );
+        address contributor,
+        bytes32 contributionId,
+        address beneficiary,
+        uint16 fee,
+        uint256 purchasePrice,
+        address continuousToken,
+        string metadata
+    );
 
     function newContribution(
-                             bytes32 contributionId,
-                             address beneficiary,
-                             uint16 fee,
-                             uint256 purchasePrice,
-                             string calldata name,
-                             string calldata symbol,
-                             string calldata metadata
-                             ) external {
-        require(!exists(contributionId), "SquadController: contribution already exists");
-        require(beneficiary != address(0), "SquadController: zero beneficiary address");
+        bytes32 contributionId,
+        address beneficiary,
+        uint16 fee,
+        uint256 purchasePrice,
+        string calldata name,
+        string calldata symbol,
+        string calldata metadata
+    ) external {
+        require(
+            !exists(contributionId),
+            "SquadController: contribution already exists"
+        );
+        require(
+            beneficiary != address(0),
+            "SquadController: zero beneficiary address"
+        );
 
-        tokenFactory.newContinuousToken(contributionId, name, symbol, address(curve));
+        tokenFactory.newContinuousToken(
+            contributionId,
+            name,
+            symbol,
+            address(curve)
+        );
 
-        contributions[contributionId] = Contribution(beneficiary, fee, purchasePrice);
+        contributions[contributionId] = Contribution(
+            beneficiary,
+            fee,
+            purchasePrice
+        );
 
-        address tokenAddress = address(tokenFactory.tokenAddress(contributionId));
+        address tokenAddress = address(
+            tokenFactory.tokenAddress(contributionId)
+        );
 
         emit NewContribution(
-                             msg.sender,
-                             contributionId,
-                             beneficiary,
-                             fee,
-                             purchasePrice,
-                             tokenAddress,
-                             metadata
-                             );
+            msg.sender,
+            contributionId,
+            beneficiary,
+            fee,
+            purchasePrice,
+            tokenAddress,
+            metadata
+        );
     }
 
     event BuyLicense(
-              address buyer,
-              bytes32 contributionId,
-              uint256 licenseId,
-              string name,
-              uint256 amount,
-              uint256 price
-              );
+        address buyer,
+        bytes32 contributionId,
+        uint256 licenseId,
+        string name,
+        uint256 amount,
+        uint256 price
+    );
 
     function buyLicense(
-                 bytes32 contributionId,
-                 uint256 amount,
-                 uint256 maxPrice
-                 ) external mustExist(contributionId) {
+        bytes32 contributionId,
+        uint256 amount,
+        uint256 maxPrice
+    ) external mustExist(contributionId) {
         ERC20 token = ERC20(tokenFactory.tokenAddress(contributionId));
         uint256 supply = token.totalSupply();
         uint256 totalPrice = price(contributionId, supply, amount);
         Contribution memory contribution = contributions[contributionId];
         uint256 purchasePrice = contribution.purchasePrice;
         require(
-                totalPrice <= maxPrice,
-                "SquadController: totalPrice exceeds maxPrice"
-                );
+            totalPrice <= maxPrice,
+            "SquadController: totalPrice exceeds maxPrice"
+        );
         require(
-                totalPrice >= purchasePrice,
-                "SquadController: not enough to meet purchasePrice"
-                );
+            totalPrice >= purchasePrice,
+            "SquadController: not enough to meet purchasePrice"
+        );
 
         // buy `amount` of the continuous token to be claimed by this license
         tokenFactory.buy(contributionId, amount, msg.sender, address(this));
 
-        FeeLib.FeeSplit memory feeSplit = FeeLib.calculateFeeSplit(contribution.fee, totalPrice);
+        FeeLib.FeeSplit memory feeSplit = FeeLib.calculateFeeSplit(
+            contribution.fee,
+            totalPrice
+        );
         accounting.credit(contribution.beneficiary, feeSplit.fee);
 
         // Create a license to claim those tokens check for the caller
         token.approve(address(tokenClaimCheck), amount);
         uint256 licenseId = tokenClaimCheck.mint(
-                             msg.sender,
-                             amount,
-                             address(this),
-                             address(token)
-                             );
+            msg.sender,
+            amount,
+            address(this),
+            address(token)
+        );
 
         // record valid license
         validLicenses[licenseId] = contributionId;
 
         string memory contributionTokenName = token.name();
         BuyLicense(
-                   msg.sender,
-                   contributionId,
-                   licenseId,
-                   contributionTokenName,
-                   amount,
-                   totalPrice
-                   );
+            msg.sender,
+            contributionId,
+            licenseId,
+            contributionTokenName,
+            amount,
+            totalPrice
+        );
     }
 
     function holdsLicense(
-                          bytes32 contributionId,
-                          uint256 licenseId,
-                          address account
-                          ) external view mustExist(contributionId) returns (bool) {
-        if(validLicenses[licenseId] != contributionId || !tokenClaimCheck.exists(licenseId)) {
+        bytes32 contributionId,
+        uint256 licenseId,
+        address account
+    ) external view mustExist(contributionId) returns (bool) {
+        if (
+            validLicenses[licenseId] != contributionId ||
+            !tokenClaimCheck.exists(licenseId)
+        ) {
             return false;
         }
         return account == tokenClaimCheck.ownerOf(licenseId);
     }
 
     function sellContinuousTokens(
-                                  bytes32 contributionId,
-                                  uint256 amount,
-                                  uint256 minPrice
-                                  ) public mustExist(contributionId) {
+        bytes32 contributionId,
+        uint256 amount,
+        uint256 minPrice
+    ) public mustExist(contributionId) {
         uint256 supply = tokenFactory.totalSupply(contributionId);
         require(
-                price(contributionId, supply.sub(amount), supply) >= minPrice,
-                "SquadController: sale price lower than min price"
-                );
+            price(contributionId, supply.sub(amount), supply) >= minPrice,
+            "SquadController: sale price lower than min price"
+        );
         tokenFactory.sell(contributionId, amount, msg.sender);
     }
 
@@ -194,26 +213,32 @@ contract SquadController is Ownable {
 
     function setNetworkFeeRate(uint16 from, uint16 to) external onlyOwner {
         require(
-                networkFeeRate == from,
-                "SquadController: network fee compare failed"
-                );
+            networkFeeRate == from,
+            "SquadController: network fee compare failed"
+        );
         require(
-                to <= maxNetworkFee,
-                "SquadController: cannot set fee higer than max"
-                );
+            to <= maxNetworkFee,
+            "SquadController: cannot set fee higer than max"
+        );
         networkFeeRate = to;
         emit SetNetworkFeeRate(from, to);
     }
 
     event Withdraw(
-                   address account,
-                   uint256 withdrawAmount,
-                   uint256 networkFeePaid
-                   );
+        address account,
+        uint256 withdrawAmount,
+        uint256 networkFeePaid
+    );
 
     function withdraw(address account) public {
-        require(accounting.total(account) > 0, "SquadController: nothing to withdraw");
-        FeeLib.FeeSplit memory feeSplit = FeeLib.calculateFeeSplit(networkFeeRate, accounting.total(account));
+        require(
+            accounting.total(account) > 0,
+            "SquadController: nothing to withdraw"
+        );
+        FeeLib.FeeSplit memory feeSplit = FeeLib.calculateFeeSplit(
+            networkFeeRate,
+            accounting.total(account)
+        );
         uint256 withdrawAmount = feeSplit.remainder;
 
         // transfer to account address
@@ -226,18 +251,29 @@ contract SquadController is Ownable {
     }
 
     function reserveDust() public view returns (uint256) {
-        return tokenFactory.reserveBalanceOf(address(this)).sub(accounting.accountsTotal());
+        return
+            tokenFactory.reserveBalanceOf(address(this)).sub(
+                accounting.accountsTotal()
+            );
     }
 
     function recoverReserveDust() public {
         tokenFactory.transferReserve(treasury, reserveDust());
     }
 
-    function price(bytes32 contributionId, uint256 supply, uint256 amount) public view returns (uint256) {
+    function price(
+        bytes32 contributionId,
+        uint256 supply,
+        uint256 amount
+    ) public view returns (uint256) {
         return tokenFactory.price(contributionId, supply, amount);
     }
 
-    function tokenAddress(bytes32 contributionId) public view returns (address) {
+    function tokenAddress(bytes32 contributionId)
+        public
+        view
+        returns (address)
+    {
         ERC20Managed token;
         (token, ) = tokenFactory.continuousTokens(contributionId);
         return address(token);
@@ -248,10 +284,12 @@ contract SquadController is Ownable {
     }
 
     modifier mustExist(bytes32 contributionId) {
-        require(exists(contributionId), "SquadController: contribution does not exist");
+        require(
+            exists(contributionId),
+            "SquadController: contribution does not exist"
+        );
         _;
     }
-
 
     /*    event SetPurchasePrice(
                            bytes32 contributionId,

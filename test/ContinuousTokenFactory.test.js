@@ -3,21 +3,16 @@
 const { expect, assert } = require('chai')
 
 describe('ContinuousTokenFactory', () => {
-  let Owner, Alice, Bob
-  let owner, alice, bob
+  let Owner, owner, Alice
   let reserveToken, linearCurve, continuousTokenFactory
-  let reserveOwner, reserveAlice, reserveBob
-  let factoryOwner, factoryAlice, factoryBob
+  let factoryOwner, factoryAlice, reserveOwner
 
   beforeEach(async () => {
     // Wallets
     const wallets = await ethers.getSigners()
     Owner = wallets[0]
     Alice = wallets[1]
-    Bob = wallets[2]
     owner = await Owner.getAddress()
-    alice = await Alice.getAddress()
-    bob = await Bob.getAddress()
 
     // Deploy contracts
     const ERC20Managed = await ethers.getContractFactory('ERC20Managed')
@@ -32,11 +27,8 @@ describe('ContinuousTokenFactory', () => {
 
     // Connect
     reserveOwner = reserveToken.connect(Owner)
-    reserveAlice = reserveToken.connect(Alice)
-    reserveBob = reserveToken.connect(Bob)
     factoryOwner = continuousTokenFactory.connect(Owner)
     factoryAlice = continuousTokenFactory.connect(Alice)
-    factoryBob = continuousTokenFactory.connect(Bob)
   })
 
   it('allows creating, buying, and selling tokens', async () => {
@@ -68,14 +60,14 @@ describe('ContinuousTokenFactory', () => {
       id,
       buyAmount,
       owner,
-      owner,
+      owner
     )).to.emit(factoryOwner, 'Buy').withArgs(
       id,
       name,
       buyAmount,
       price,
       owner,
-      owner,
+      owner
     )
     ownerBalance = await token.balanceOf(owner)
     assert(ownerBalance.eq(buyAmount), "Owner's post-buy balance not buy amount")
@@ -100,7 +92,7 @@ describe('ContinuousTokenFactory', () => {
     assert(ownerBalance.eq(expectedSupply), 'Sell failed')
   })
 
-  it.skip("can buy for others", () => {
+  it.skip('can buy for others', () => {
     assert(false)
-  });
+  })
 })

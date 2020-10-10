@@ -4,18 +4,21 @@ const { expect, assert } = require('chai')
 const { linearCurveAmount } = require('../utils.js')
 
 describe('SquadController', () => {
-  let Owner, Alice, Bob, Treasury
-  let owner, alice, bob, treasury
+  let Alice, Bob, Treasury
+  let alice, bob, treasury
   let squadController, reserveToken, curve, claimCheck
-  let squadAlice, squadBob, squadTreasury, claimCheckBob, reserveTokenBob
+  let squadAlice, squadBob, claimCheckBob, reserveTokenBob
   let aliceId, aliceTokenName, aliceFee
 
   const networkFee = 100
   const maxNetworkFee = 1000
 
   beforeEach(async () => {
-    [Owner, Alice, Bob, Treasury] = await ethers.getSigners()
-    owner = await Owner.getAddress()
+    const signers = await ethers.getSigners()
+    Alice = signers[1]
+    Bob = signers[2]
+    Treasury = signers[3]
+
     alice = await Alice.getAddress()
     bob = await Bob.getAddress()
     treasury = await Treasury.getAddress()
@@ -41,7 +44,6 @@ describe('SquadController', () => {
 
     squadAlice = squadController.connect(Alice)
     squadBob = squadController.connect(Bob)
-    squadTreasury = squadController.connect(Treasury)
     claimCheckBob = claimCheck.connect(Bob)
     reserveTokenBob = reserveToken.connect(Bob)
 
@@ -86,7 +88,7 @@ describe('SquadController', () => {
     assert(false)
   })
 
-  async function setUpForBuyLicense() {
+  async function setUpForBuyLicense () {
     const aliceContribution = await squadBob.contributions(aliceId)
     const aliceContinuousToken = await squadBob.tokenAddress(aliceId)
     const aliceToken = new ethers.Contract(
@@ -111,13 +113,13 @@ describe('SquadController', () => {
       squadBob.buyLicense(
         aliceId,
         amount,
-        maxPrice,
+        maxPrice
       )
     ).to.emit(squadController, 'BuyLicense')
 
     // Bob should have the first NFT
     const bobsNFTid = await claimCheckBob.tokenOfOwnerByIndex(bob, 0)
-    assert(bobsNFTid.toString() == '1', 'NFT not owned after buy')
+    assert(bobsNFTid.toString() === '1', 'NFT not owned after buy')
 
     // Bobs NFT should claim `amount` of `aliceContinuousToken`
     const bobsClaim = await claimCheckBob.claims(bobsNFTid)
@@ -144,10 +146,10 @@ describe('SquadController', () => {
       squadBob.buyLicense(
         doesNotExistId,
         0,
-        0,
+        0
       )
     ).to.be.revertedWith(
-      "SquadController: contribution does not exist"
+      'SquadController: contribution does not exist'
     )
   })
 
@@ -155,29 +157,29 @@ describe('SquadController', () => {
     const aboveMaxNetworkFee = maxNetworkFee + 1
     await expect(
       squadController.setNetworkFeeRate(networkFee, aboveMaxNetworkFee)
-    ).to.be.revertedWith("SquadController: cannot set fee higer than max")
+    ).to.be.revertedWith('SquadController: cannot set fee higer than max')
     await expect(
       squadAlice.setNetworkFeeRate(networkFee, maxNetworkFee)
-    ).to.be.revertedWith("Ownable: caller is not the owner")
+    ).to.be.revertedWith('Ownable: caller is not the owner')
     await expect(
       squadController.setNetworkFeeRate(networkFee, maxNetworkFee)
-    ).to.emit(squadController, "SetNetworkFeeRate").withArgs(networkFee, maxNetworkFee)
+    ).to.emit(squadController, 'SetNetworkFeeRate').withArgs(networkFee, maxNetworkFee)
     assert(
-      await squadController.networkFeeRate() == maxNetworkFee,
-      "Network fee failed to set"
+      await squadController.networkFeeRate() === maxNetworkFee,
+      'Network fee failed to set'
     )
   })
 
   it('Beneficiary withdraws their fee and pays network fee', async () => {
     await expect(
       squadAlice.withdraw(alice)
-    ).to.be.revertedWith("SquadController: nothing to withdraw")
+    ).to.be.revertedWith('SquadController: nothing to withdraw')
 
-    let { amount, maxPrice, aliceContinuousToken } = await setUpForBuyLicense()
+    const { amount, maxPrice } = await setUpForBuyLicense()
     await squadBob.buyLicense(
       aliceId,
       amount,
-      maxPrice,
+      maxPrice
     )
 
     // network fee is 100
@@ -197,40 +199,40 @@ describe('SquadController', () => {
 
     await expect(
       squadAlice.withdraw(alice)
-    ).to.emit(squadController, "Withdraw").withArgs(
+    ).to.emit(squadController, 'Withdraw').withArgs(
       alice,
       withdrawAmount,
-      networkFeePaid,
+      networkFeePaid
     )
 
     // confirm alice got paid
     expect(
       (await reserveToken.balanceOf(alice)).sub(balanceBefore).eq(withdrawAmount),
-      "incorrect balance after withdraw"
+      'incorrect balance after withdraw'
     )
 
     // confirm treasury got paid
     expect(
-      (await reserveToken.balanceOf(treasury)).sub(balanceBefore).eq(networkFeePaid),
-      "incorrect balance after withdraw"
+      (await reserveToken.balanceOf(treasury)).sub(treasuryBalanceBefore).eq(networkFeePaid),
+      'incorrect treasury balance after withdraw'
     )
   })
 
   it('buys back contribution tokens', async () => {
-    let { amount, maxPrice, aliceToken } = await setUpForBuyLicense()
+    const { amount, maxPrice, aliceToken } = await setUpForBuyLicense()
     await squadBob.buyLicense(
       aliceId,
       amount,
-      maxPrice,
+      maxPrice
     )
     assert(
       (await aliceToken.balanceOf(bob)).eq(0),
-      "Incorrect Token A balance before redeem",
+      'Incorrect Token A balance before redeem'
     )
     await claimCheckBob.redeem(1)
     assert(
       (await aliceToken.balanceOf(bob)).eq(amount),
-      "Incorrect Token A balance after redeem",
+      'Incorrect Token A balance after redeem'
     )
     const balanceBefore = await reserveToken.balanceOf(bob)
     const price = await squadBob.price(aliceId, 0, amount)

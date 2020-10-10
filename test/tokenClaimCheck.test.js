@@ -4,18 +4,16 @@ const { expect, assert } = require('chai')
 
 describe('TokenClaimCheck', () => {
   let tokenClaimCheck, tokenA, tokenB
-  let Owner, owner, Alice, alice, Bob, bob
-  let tccAlice, tccBob, tokenAAlice, tokenBAlice, tokenABob, tokenBBob
+  let Alice, alice, Bob, bob
+  let tccAlice, tccBob, tokenAAlice, tokenBBob
 
   beforeEach(async () => {
     // Wallets
     const wallets = await ethers.getSigners()
-    Owner = wallets[0]
     Alice = wallets[1]
     Bob = wallets[2]
 
     // addresses
-    owner = await Owner.getAddress()
     alice = await Alice.getAddress()
     bob = await Bob.getAddress()
 
@@ -33,8 +31,6 @@ describe('TokenClaimCheck', () => {
     tccAlice = tokenClaimCheck.connect(Alice)
     tccBob = tokenClaimCheck.connect(Bob)
     tokenAAlice = tokenA.connect(Alice)
-    tokenABob = tokenA.connect(Bob)
-    tokenBAlice = tokenB.connect(Alice)
     tokenBBob = tokenB.connect(Bob)
 
     // set up initial balances
@@ -56,13 +52,13 @@ describe('TokenClaimCheck', () => {
           alice, // to
           aliceDeposit, // amount
           alice, // from
-          tokenA.address, // token
+          tokenA.address // token
         )
       ).to.emit(tccAlice, 'Mint').withArgs(
         alice,
         aliceDeposit,
         alice,
-        tokenA.address,
+        tokenA.address
       )
 
       // Alice should have 80 token A and 0 token B
@@ -77,7 +73,7 @@ describe('TokenClaimCheck', () => {
         bob,
         bobDeposit,
         bob,
-        tokenB.address,
+        tokenB.address
       )
 
       // Bob should have 30 token B and 0 token A

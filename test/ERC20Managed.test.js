@@ -3,12 +3,10 @@
 const { expect, assert } = require('chai')
 
 describe('ERC20Managed', () => {
-  let owner, alice
-  let erc20Managed, erc20ManagedAlice
+  let alice, erc20Managed, erc20ManagedAlice
 
   beforeEach(async () => {
     const wallets = await ethers.getSigners()
-    owner = await wallets[0].getAddress()
     alice = await wallets[1].getAddress()
 
     const ERC20Managed = await ethers.getContractFactory('ERC20Managed')
