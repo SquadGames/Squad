@@ -14,7 +14,7 @@ import "./FeeLib.sol";
 import "@nomiclabs/buidler/console.sol";
 
 /**
- * @dev SquadController provides the basic Squad Platform
+ * `SquadController` provides the basic Squad Platform
  *
  * It manages contributions and the bonding curves backing them
  * through a {BondingCurveFactory} ERC20 token.
@@ -33,10 +33,10 @@ contract SquadController is Ownable {
     TokenClaimCheck public tokenClaimCheck;
     Curve public curve;
     Accounting public accounting;
-    BondingCurveFactory public tokenFactory;
+    BondingCurveFactory public bondingCurveFactory;
 
     uint16 public networkFeeRate; // in basis points
-    uint16 public maxNetworkFee; // in basis points
+    uint16 public maxNetworkFeeRate; // in basis points
 
     address public treasury;
 
@@ -50,17 +50,29 @@ contract SquadController is Ownable {
     mapping(uint256 => bytes32) public validLicenses;
 
     /**
-     * @dev Sets the values for {networkFeeRate} and
-     * {maxNetworkFeeRate} in basis points. Sets the {treasury},
-     * {tokenClaimCheck}, and {curve}. Creates a new
-     * {bondingCurveFactory} with the {reserveToken} and a new
-     * {accounting} contract.
+     * `constructor` sets up needed values and contracts
+     *
+     * Sets the values for `networkFeeRate` and `maxNetworkFeeRate` in
+     * basis points.
+     *
+     * Sets the `treasury`, `tokenClaimCheck`, and `curve`.
+     *
+     * Creates a new `bondingCurveFactory` with the `reserveToken` and
+     * a new `accounting` contract.
+     *
+     * Requires `treasury` and `curve` addresses to be nonzero
+     *
+     * Requires `maxNetworkFeeRate` to be less than or equal to 10000
+     * (100% equivilent)
+     *
+     * Requires `networkFeeRate` to be less than or equal to
+     * `maxNetworkFeeRate`
      */
     constructor(
         address reserveToken,
         address _tokenClaimCheck,
         uint16 _networkFeeRate,
-        uint16 _maxNetworkFee,
+        uint16 _maxNetworkFeeRate,
         address _treasury,
         address _curve
     ) public {
@@ -70,19 +82,19 @@ contract SquadController is Ownable {
         );
         require(_curve != address(0), "SquadController: zero Curve address");
         require(
-            _maxNetworkFee <= 10000,
+            _maxNetworkFeeRate <= 10000,
             "SquadController: max network fee > 100%"
         );
         require(
-            _networkFeeRate <= _maxNetworkFee,
+            _networkFeeRate <= _maxNetworkFeeRate,
             "SquadController: network gee > max"
         );
         networkFeeRate = _networkFeeRate;
-        maxNetworkFee = _maxNetworkFee;
+        maxNetworkFeeRate = _maxNetworkFeeRate;
         treasury = _treasury;
         tokenClaimCheck = TokenClaimCheck(_tokenClaimCheck);
         curve = Curve(_curve);
-        tokenFactory = new BondingCurveFactory(reserveToken);
+        bondingCurveFactory = new BondingCurveFactory(reserveToken);
         accounting = new Accounting();
     }
 
@@ -90,16 +102,48 @@ contract SquadController is Ownable {
         address contributor,
         bytes32 contributionId,
         address beneficiary,
-        uint16 fee,
+        uint16 feeRate,
         uint256 purchasePrice,
         address bondingCurve,
         string metadata
     );
 
+    /**
+     * `newContribution`: Creates and sets up a new contribution
+     *
+     * `contributionId`: Should uniquely identify the contribution. It
+     * should be the hash of the contribution data. Contributions with
+     * a given ID can only ever be created once
+     *
+     * `beneficiary`: The address that will earn fees when the bonding
+     * curve token sells
+     *
+     * `feeRate`: The rate (in basis points) earned by the beneficiary
+     * when the bonding curve token sells
+     *
+     * `purchasePrice`: The initial price (in `reserveToken`) of a
+     * license to use the contribution. The beneficiary may change
+     * this price at any time by calling `setPurchasePrice`
+     *
+     * `name`: The bonding curve token will be created with this name
+     *
+     * `symbol`: The bonding curve token will be created with this
+     * symbol
+     *
+     * `metadata`: Data that will be included in the event logs. This
+     * can be useful for client applications by including information
+     * to help search for or categorize the contribution
+     *
+     * Creates a new bonding curve with the `bondingCurveFactory` and records
+     * all needed information in the `contributions` mapping for
+     * future reference
+     *
+     * Emits a `NewContribution` event
+     */
     function newContribution(
         bytes32 contributionId,
         address beneficiary,
-        uint16 fee,
+        uint16 feeRate,
         uint256 purchasePrice,
         string calldata name,
         string calldata symbol,
@@ -114,7 +158,7 @@ contract SquadController is Ownable {
             "SquadController: zero beneficiary address"
         );
 
-        tokenFactory.newBondingCurve(
+        bondingCurveFactory.newBondingCurve(
             contributionId,
             name,
             symbol,
@@ -123,7 +167,7 @@ contract SquadController is Ownable {
 
         contributions[contributionId] = Contribution(
             beneficiary,
-            fee,
+            feeRate,
             purchasePrice
         );
 
@@ -133,7 +177,7 @@ contract SquadController is Ownable {
             msg.sender,
             contributionId,
             beneficiary,
-            fee,
+            feeRate,
             purchasePrice,
             addr,
             metadata
@@ -149,15 +193,43 @@ contract SquadController is Ownable {
         uint256 price
     );
 
+    /**
+     * `buyLicense`: Buys an NFT licensefor the `purchasePrice`
+     *
+     * `contributionId`: Buy a license to use this contribution
+     *
+     * `amount`: Buy and claim this amount of bonding curve
+     * token. It's required to cost more than the conribution's
+     * current `purchasePrice`
+     *
+     * `maxPrice`: Revert if the price of `amount` has slipped above
+     * this.
+     *
+     * A valid license costs a set price (in the `reserveToken`) equal
+     * to the contribution's `purchasePrice` at the time of
+     * purchase. This price is spent on an `amount` the contribution's
+     * curved bond token. It is inneficient to find an `amount` to buy
+     * that will cost that price. Therefor the client must do the
+     * calculation before calling `buyLicense` and pass an `amount`
+     * that will cost greater than or equal to the current
+     * `purchasePrice`. That `amount` of curved bond token will be
+     * bought, the license will claim that `amount`, and will be
+     * redeemable for that `amount` from the `tokenClaimCheck`.
+     *
+     * `buyLicense` keeps track of all valid licenses that were
+     * created and the contribution they are valid for.
+     *
+     * Emits a `BuyLicense` event
+     */
     function buyLicense(
         bytes32 contributionId,
         uint256 amount,
         uint256 maxPrice
     ) external mustExist(contributionId) {
         ERC20 token;
-        (token, ) = tokenFactory.bondingCurves(contributionId);
+        (token, ) = bondingCurveFactory.bondingCurves(contributionId);
         uint256 supply = token.totalSupply();
-        uint256 totalPrice = price(contributionId, supply, amount);
+        uint256 totalPrice = priceOf(contributionId, supply, amount);
         Contribution memory contribution = contributions[contributionId];
         uint256 purchasePrice = contribution.purchasePrice;
         require(
@@ -170,7 +242,7 @@ contract SquadController is Ownable {
         );
 
         // buy `amount` of the continuous token to be claimed by this license
-        tokenFactory.buy(contributionId, amount, msg.sender, address(this));
+        bondingCurveFactory.buy(contributionId, amount, msg.sender, address(this));
 
         FeeLib.FeeSplit memory feeSplit = FeeLib.calculateFeeSplit(
             contribution.feeRate,
@@ -202,6 +274,20 @@ contract SquadController is Ownable {
         );
     }
 
+    /**
+     * `holdsLicense` Checks if an account holds a valid license
+     * to use a contribution
+     *
+     * `contributionId`: The contribution being checked
+     *
+     * `licenseId`: The license being checked
+     *
+     * `account`: The user account being checked
+     *
+     * A license is valid if the NFT Claim Check exists and is a
+     * valid license for the contribution in question. The `account`
+     * holds it if they are the owner of the NFT.
+     */
     function holdsLicense(
         bytes32 contributionId,
         uint256 licenseId,
@@ -216,13 +302,27 @@ contract SquadController is Ownable {
         return account == tokenClaimCheck.ownerOf(licenseId);
     }
 
+    /**
+     * `sellTokens`: Sells a contribution's curved bond tokens for
+     * `reserveToken`
+     *
+     * `contributionId': The contribution's curved bond token to sell
+     *
+     * `amount`: The amount of token to sell
+     *
+     * `minPrice`: Reverts if the sale price is lower due to others
+     *
+     * See `BondingCurveFactory.sell`. This function passes the
+     * correct `feeRate` for the contribution and sells on behalf of
+     * the `msg.sender`
+     */
     function sellTokens(
         bytes32 contributionId,
         uint256 amount,
         uint256 minPrice
     ) public mustExist(contributionId) {
         uint16 feeRate = contributions[contributionId].feeRate;
-        tokenFactory.sell(
+        bondingCurveFactory.sell(
             contributionId,
             amount,
             feeRate,
@@ -234,13 +334,26 @@ contract SquadController is Ownable {
 
     event SetNetworkFeeRate(uint16 from, uint16 to);
 
+    /**
+     * `setNetworkFeeRate`: Sets the `networkFeeRate` if lower than
+     * `maxNetworkFeeRate`
+     *
+     * `from`: Don't change the rate if the current rate is not what
+     * the caller is changing it `from`
+     *
+     * `to`: The new rate
+     *
+     * Requires `to` to be less than or equal to `maxNetworkFeeRate`
+     *
+     * Emits a `SetNetworkFeeRate` event
+     */
     function setNetworkFeeRate(uint16 from, uint16 to) external onlyOwner {
         require(
             networkFeeRate == from,
             "SquadController: network fee compare failed"
         );
         require(
-            to <= maxNetworkFee,
+            to <= maxNetworkFeeRate,
             "SquadController: cannot set fee higer than max"
         );
         networkFeeRate = to;
@@ -253,6 +366,17 @@ contract SquadController is Ownable {
         uint256 networkFeePaid
     );
 
+    /**
+     * `withdraw`: Transferes to a beneficiary their earned fees and
+     * pays the network fee
+     *
+     * `account`: The beneficiary to withdraw for
+     *
+     * Requires the `account` to have something to with draw; more
+     * than zero.
+     *
+     * Emits a `Withdraw` event
+     */
     function withdraw(address account) public {
         require(
             accounting.total(account) > 0,
@@ -269,61 +393,97 @@ contract SquadController is Ownable {
         accounting.debit(account, total);
 
         // transfer to account address
-        tokenFactory.transferReserve(account, feeSplit.remainder);
+        bondingCurveFactory.transferReserve(account, feeSplit.remainder);
 
         // transfer to treasury
-        tokenFactory.transferReserve(treasury, feeSplit.fee);
+        bondingCurveFactory.transferReserve(treasury, feeSplit.fee);
 
         emit Withdraw(account, feeSplit.remainder, feeSplit.fee);
     }
 
+    /**
+     * `reserveDust`: View returning the amount of `reserveToken` in the
+     * system that is not accounted for due to rounding errors (or
+     * "rounding dust")
+     */
     function reserveDust() public view returns (uint256) {
         return
-            tokenFactory.reserveBalanceOf(address(tokenFactory)).sub(
+            bondingCurveFactory.reserveBalanceOf(address(bondingCurveFactory)).sub(
                 accounting.accountsTotal()
             );
     }
 
     event RecoverReserveDust(address to, uint256 amount);
 
+    /**
+     * `recoverReserveDust`: Transfers the rounding dust that has
+     * accumulated in the system to the treasury.
+     *
+     * Requires there to be dust to recover
+     *
+     * Emits a `RecoverReserveDust` event
+     */
     function recoverReserveDust() public {
         uint256 amount = reserveDust();
         require(amount > 0, "No dust to recover");
-        tokenFactory.transferReserve(treasury, amount);
+        bondingCurveFactory.transferReserve(treasury, amount);
         emit RecoverReserveDust(treasury, amount);
     }
 
-    function price(
+    /**
+     * `priceOf`: View returning the price of an amount given a supply
+     * of a contribution bonding curve token
+     *
+     * see `bondingCurveFactory.priceOf`
+     */
+    function priceOf(
         bytes32 contributionId,
         uint256 supply,
         uint256 amount
     ) public view returns (uint256) {
-        return tokenFactory.priceOf(contributionId, supply, amount);
+        return bondingCurveFactory.priceOf(contributionId, supply, amount);
     }
 
+    /**
+     * `tokenAddress`: View returning the address of the
+     * contribution's bonding curve ERC20 token
+     */
     function tokenAddress(bytes32 contributionId)
         public
         view
         returns (address)
     {
         ERC20Managed token;
-        (token, ) = tokenFactory.bondingCurves(contributionId);
+        (token, ) = bondingCurveFactory.bondingCurves(contributionId);
         return address(token);
     }
 
+    /**
+     * `totalSupplyOf`: View retuning the total supply of the
+     * contribution's bonding curve token
+     *
+     * Requires the contribution to exist
+     */
     function totalSupplyOf(bytes32 contributionId)
         external
         view
         mustExist(contributionId)
         returns (uint256)
     {
-        return tokenFactory.totalSupplyOf(contributionId);
+        return bondingCurveFactory.totalSupplyOf(contributionId);
     }
 
+    /**
+     * `exists`: View returning whether a contribution exists
+     */
     function exists(bytes32 contributionId) public view returns (bool) {
         return contributions[contributionId].beneficiary != address(0);
     }
 
+    /**
+     * `mustExist`: Modifier used to require that a contribution
+     * exist
+     */
     modifier mustExist(bytes32 contributionId) {
         require(
             exists(contributionId),

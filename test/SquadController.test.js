@@ -71,7 +71,7 @@ describe('SquadController', () => {
 
     // it uses the right curve
     assert(
-      (await squadController.price(aliceId, 0, ethers.utils.parseEther('10'))).eq(
+      (await squadController.priceOf(aliceId, 0, ethers.utils.parseEther('10'))).eq(
         await curve.price(0, ethers.utils.parseEther('10'))),
       'price mismatch'
     )
@@ -103,7 +103,7 @@ describe('SquadController', () => {
       ethers.utils.parseEther('0.001')
     )
     await reserveToken.mint(bob, maxPrice)
-    await reserveTokenBob.approve(await squadController.tokenFactory(), maxPrice)
+    await reserveTokenBob.approve(await squadController.bondingCurveFactory(), maxPrice)
     return { amount, maxPrice, aliceContinuousToken, aliceToken }
   }
 
@@ -185,7 +185,7 @@ describe('SquadController', () => {
     // network fee is 100
     // alice fee is 200
 
-    const purchasePrice = await squadController.price(aliceId, 0, amount)
+    const purchasePrice = await squadController.priceOf(aliceId, 0, amount)
     const aliceAccount = purchasePrice.mul(aliceFee).div(10000).add(
       purchasePrice.mul(aliceFee).mod(10000)
     )
@@ -235,7 +235,7 @@ describe('SquadController', () => {
       'Incorrect Token A balance after redeem'
     )
     const balanceBefore = await reserveToken.balanceOf(bob)
-    const price = await squadBob.price(aliceId, 0, amount)
+    const price = await squadBob.priceOf(aliceId, 0, amount)
     const feeRate = (await squadBob.contributions(aliceId)).feeRate
 
     /** * This is how to calculate what the exact fee is going to be ***/
@@ -269,13 +269,13 @@ describe('SquadController', () => {
     await claimCheckBob.redeem(2)
     await claimCheckBob.redeem(1)
 
-    const price = await squadBob.price(aliceId, 0, amount)
+    const price = await squadBob.priceOf(aliceId, 0, amount)
     const feeRate = (await squadBob.contributions(aliceId)).feeRate
     const exactFee = price.mul(feeRate).div(10000).add(price.mul(feeRate).mod(100000))
     const minPrice = price.sub(exactFee).sub(100)
     await squadBob.sellTokens(aliceId, amount, minPrice)
 
-    const price2 = await squadBob.price(aliceId, 0, amount2)
+    const price2 = await squadBob.priceOf(aliceId, 0, amount2)
     const feeRate2 = (await squadBob.contributions(aliceId)).feeRate
     const exactFee2 = price2.mul(feeRate2).div(10000).add(price2.mul(feeRate).mod(100000))
     const minPrice2 = price2.sub(exactFee2).sub(100)
@@ -285,7 +285,7 @@ describe('SquadController', () => {
 
     // check how much dust is left
     const dustLeft = await reserveToken.balanceOf(
-      await squadController.tokenFactory()
+      await squadController.bondingCurveFactory()
     )
 
     assert(dustLeft.gt(0), 'No dust left')
