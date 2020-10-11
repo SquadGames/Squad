@@ -13,6 +13,19 @@ import "./Accounting.sol";
 import "./FeeLib.sol";
 import "@nomiclabs/buidler/console.sol";
 
+/**
+ * @dev SquadController provides the basic Squad Platform
+ *
+ * It manages contributions and the bonding curves backing them
+ * through a {BondingCurveFactory} ERC20 token.
+ *
+ * It manages licencing, allowing contributor (beneficiaries) to set a
+ * constant price for a license to use their contribution through a
+ * {TokenClaimCheck} ERC721 NFT.
+ *
+ * It manages network and beneficiary fees taken from purchases of the
+ * bonding curve token.
+ */
 contract SquadController is Ownable {
     using SafeMath for uint256;
     using SafeMath for uint16;
@@ -36,6 +49,13 @@ contract SquadController is Ownable {
 
     mapping(uint256 => bytes32) public validLicenses;
 
+    /**
+     * @dev Sets the values for {networkFeeRate} and
+     * {maxNetworkFeeRate} in basis points. Sets the {treasury},
+     * {tokenClaimCheck}, and {curve}. Creates a new
+     * {bondingCurveFactory} with the {reserveToken} and a new
+     * {accounting} contract.
+     */
     constructor(
         address reserveToken,
         address _tokenClaimCheck,
@@ -61,9 +81,9 @@ contract SquadController is Ownable {
         maxNetworkFee = _maxNetworkFee;
         treasury = _treasury;
         tokenClaimCheck = TokenClaimCheck(_tokenClaimCheck);
+        curve = Curve(_curve);
         tokenFactory = new BondingCurveFactory(reserveToken);
         accounting = new Accounting();
-        curve = Curve(_curve);
     }
 
     event NewContribution(

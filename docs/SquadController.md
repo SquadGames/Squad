@@ -2,7 +2,14 @@
 
 
 
-
+SquadController provides the basic Squad Platform
+It manages contributions and the bonding curves backing them
+through a {BondingCurveFactory} ERC20 token.
+It manages licencing, allowing contributor (beneficiaries) to set a
+constant price for a license to use their contribution through a
+{TokenClaimCheck} ERC721 NFT.
+It manages network and beneficiary fees taken from purchases of the
+bonding curve token.
 
 ### `mustExist(bytes32 contributionId)`
 
@@ -15,7 +22,11 @@
 
 
 
-
+Sets the values for {networkFeeRate} and
+{maxNetworkFeeRate} in basis points. Sets the {treasury},
+{tokenClaimCheck}, and {curve}. Creates a new
+{bondingCurveFactory} with the {reserveToken} and a new
+{accounting} contract.
 
 ### `newContribution(bytes32 contributionId, address beneficiary, uint16 fee, uint256 purchasePrice, string name, string symbol, string metadata)` (external)
 
