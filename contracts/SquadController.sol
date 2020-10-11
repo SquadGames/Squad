@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ERC20Managed.sol";
 import "./TokenClaimCheck.sol";
-import "./ContinuousTokenFactory.sol";
+import "./BondingCurveFactory.sol";
 import "./Curve.sol";
 import "./Accounting.sol";
 import "./FeeLib.sol";
@@ -20,7 +20,7 @@ contract SquadController is Ownable {
     TokenClaimCheck public tokenClaimCheck;
     Curve public curve;
     Accounting public accounting;
-    ContinuousTokenFactory public tokenFactory;
+    BondingCurveFactory public tokenFactory;
 
     uint16 public networkFeeRate; // in basis points
     uint16 public maxNetworkFee; // in basis points
@@ -29,7 +29,7 @@ contract SquadController is Ownable {
 
     struct Contribution {
         address beneficiary;
-        uint16 fee; // in basis points
+        uint16 feeRate; // in basis points
         uint256 purchasePrice;
     }
     mapping(bytes32 => Contribution) public contributions;
@@ -61,7 +61,7 @@ contract SquadController is Ownable {
         maxNetworkFee = _maxNetworkFee;
         treasury = _treasury;
         tokenClaimCheck = TokenClaimCheck(_tokenClaimCheck);
-        tokenFactory = new ContinuousTokenFactory(reserveToken);
+        tokenFactory = new BondingCurveFactory(reserveToken);
         accounting = new Accounting();
         curve = Curve(_curve);
     }
@@ -72,7 +72,7 @@ contract SquadController is Ownable {
         address beneficiary,
         uint16 fee,
         uint256 purchasePrice,
-        address continuousToken,
+        address bondingCurve,
         string metadata
     );
 
@@ -94,7 +94,7 @@ contract SquadController is Ownable {
             "SquadController: zero beneficiary address"
         );
 
-        tokenFactory.newContinuousToken(
+        tokenFactory.newBondingCurve(
             contributionId,
             name,
             symbol,
@@ -107,9 +107,7 @@ contract SquadController is Ownable {
             purchasePrice
         );
 
-        address tokenAddress = address(
-            tokenFactory.tokenAddress(contributionId)
-        );
+        address addr = tokenAddress(contributionId);
 
         emit NewContribution(
             msg.sender,
@@ -117,7 +115,7 @@ contract SquadController is Ownable {
             beneficiary,
             fee,
             purchasePrice,
-            tokenAddress,
+            addr,
             metadata
         );
     }
@@ -136,7 +134,8 @@ contract SquadController is Ownable {
         uint256 amount,
         uint256 maxPrice
     ) external mustExist(contributionId) {
-        ERC20 token = ERC20(tokenFactory.tokenAddress(contributionId));
+        ERC20 token;
+        (token, ) = tokenFactory.bondingCurves(contributionId);
         uint256 supply = token.totalSupply();
         uint256 totalPrice = price(contributionId, supply, amount);
         Contribution memory contribution = contributions[contributionId];
@@ -154,9 +153,10 @@ contract SquadController is Ownable {
         tokenFactory.buy(contributionId, amount, msg.sender, address(this));
 
         FeeLib.FeeSplit memory feeSplit = FeeLib.calculateFeeSplit(
-            contribution.fee,
+            contribution.feeRate,
             totalPrice
         );
+
         accounting.credit(contribution.beneficiary, feeSplit.fee);
 
         // Create a license to claim those tokens check for the caller
@@ -196,17 +196,20 @@ contract SquadController is Ownable {
         return account == tokenClaimCheck.ownerOf(licenseId);
     }
 
-    function sellContinuousTokens(
+    function sellTokens(
         bytes32 contributionId,
         uint256 amount,
         uint256 minPrice
     ) public mustExist(contributionId) {
-        uint256 supply = tokenFactory.totalSupply(contributionId);
-        require(
-            price(contributionId, supply.sub(amount), supply) >= minPrice,
-            "SquadController: sale price lower than min price"
+        uint16 feeRate = contributions[contributionId].feeRate;
+        tokenFactory.sell(
+            contributionId,
+            amount,
+            feeRate,
+            minPrice,
+            msg.sender,
+            msg.sender
         );
-        tokenFactory.sell(contributionId, amount, msg.sender);
     }
 
     event SetNetworkFeeRate(uint16 from, uint16 to);
@@ -235,30 +238,39 @@ contract SquadController is Ownable {
             accounting.total(account) > 0,
             "SquadController: nothing to withdraw"
         );
+
+        uint256 total = accounting.total(account);
+
         FeeLib.FeeSplit memory feeSplit = FeeLib.calculateFeeSplit(
             networkFeeRate,
-            accounting.total(account)
+            total
         );
-        uint256 withdrawAmount = feeSplit.remainder;
+
+        accounting.debit(account, total);
 
         // transfer to account address
-        tokenFactory.transferReserve(account, withdrawAmount);
+        tokenFactory.transferReserve(account, feeSplit.remainder);
 
         // transfer to treasury
         tokenFactory.transferReserve(treasury, feeSplit.fee);
 
-        emit Withdraw(account, withdrawAmount, feeSplit.fee);
+        emit Withdraw(account, feeSplit.remainder, feeSplit.fee);
     }
 
     function reserveDust() public view returns (uint256) {
         return
-            tokenFactory.reserveBalanceOf(address(this)).sub(
+            tokenFactory.reserveBalanceOf(address(tokenFactory)).sub(
                 accounting.accountsTotal()
             );
     }
 
+    event RecoverReserveDust(address to, uint256 amount);
+
     function recoverReserveDust() public {
-        tokenFactory.transferReserve(treasury, reserveDust());
+        uint256 amount = reserveDust();
+        require(amount > 0, "No dust to recover");
+        tokenFactory.transferReserve(treasury, amount);
+        emit RecoverReserveDust(treasury, amount);
     }
 
     function price(
@@ -266,7 +278,7 @@ contract SquadController is Ownable {
         uint256 supply,
         uint256 amount
     ) public view returns (uint256) {
-        return tokenFactory.price(contributionId, supply, amount);
+        return tokenFactory.priceOf(contributionId, supply, amount);
     }
 
     function tokenAddress(bytes32 contributionId)
@@ -275,8 +287,17 @@ contract SquadController is Ownable {
         returns (address)
     {
         ERC20Managed token;
-        (token, ) = tokenFactory.continuousTokens(contributionId);
+        (token, ) = tokenFactory.bondingCurves(contributionId);
         return address(token);
+    }
+
+    function totalSupplyOf(bytes32 contributionId)
+        external
+        view
+        mustExist(contributionId)
+        returns (uint256)
+    {
+        return tokenFactory.totalSupplyOf(contributionId);
     }
 
     function exists(bytes32 contributionId) public view returns (bool) {

@@ -236,7 +236,73 @@ describe('SquadController', () => {
     )
     const balanceBefore = await reserveToken.balanceOf(bob)
     const price = await squadBob.price(aliceId, 0, amount)
-    await squadBob.sellContinuousTokens(aliceId, amount, price)
-    assert((await reserveToken.balanceOf(bob)).eq(price.add(balanceBefore)))
+    const feeRate = (await squadBob.contributions(aliceId)).feeRate
+
+    /** * This is how to calculate what the exact fee is going to be ***/
+    const fee = price.mul(feeRate).div(10000).add(price.mul(feeRate).mod(100000))
+    /** * This is how to calculate what the exact fee is going to be ***/
+
+    const exactPrice = price.sub(fee)
+    await squadBob.sellTokens(aliceId, amount, exactPrice)
+    assert((await reserveToken.balanceOf(bob)).eq(exactPrice.add(balanceBefore)),
+      'incorrect balance after withdraw'
+    )
+  })
+
+  it('recovers rounding dust', async () => {
+    // Setup: buy, redeem, and sell should leave some rounding dust
+    const { amount, maxPrice } = await setUpForBuyLicense()
+    await squadBob.buyLicense(
+      aliceId,
+      amount,
+      maxPrice
+    )
+    const {
+      amount: amount2,
+      maxPrice: maxPrice2
+    } = await setUpForBuyLicense()
+    await squadBob.buyLicense(
+      aliceId,
+      amount2,
+      maxPrice2
+    )
+    await claimCheckBob.redeem(2)
+    await claimCheckBob.redeem(1)
+
+    const price = await squadBob.price(aliceId, 0, amount)
+    const feeRate = (await squadBob.contributions(aliceId)).feeRate
+    const exactFee = price.mul(feeRate).div(10000).add(price.mul(feeRate).mod(100000))
+    const minPrice = price.sub(exactFee).sub(100)
+    await squadBob.sellTokens(aliceId, amount, minPrice)
+
+    const price2 = await squadBob.price(aliceId, 0, amount2)
+    const feeRate2 = (await squadBob.contributions(aliceId)).feeRate
+    const exactFee2 = price2.mul(feeRate2).div(10000).add(price2.mul(feeRate).mod(100000))
+    const minPrice2 = price2.sub(exactFee2).sub(100)
+    await squadBob.sellTokens(aliceId, amount2, minPrice2)
+
+    await squadBob.withdraw(alice)
+
+    // check how much dust is left
+    const dustLeft = await reserveToken.balanceOf(
+      await squadController.tokenFactory()
+    )
+
+    assert(dustLeft.gt(0), 'No dust left')
+    assert(dustLeft.lt(10000), 'Too much dust left')
+
+    // recover dust
+    const treasuryBalance = await reserveToken.balanceOf(treasury)
+    await expect(
+      squadController.recoverReserveDust()
+    ).to.emit(squadController, 'RecoverReserveDust').withArgs(
+      treasury, dustLeft
+    )
+    assert(
+      (await reserveToken.balanceOf(treasury)).eq(
+        treasuryBalance.add(dustLeft)
+      ),
+      'Incorrect treasury balance after dust recovery'
+    )
   })
 })
