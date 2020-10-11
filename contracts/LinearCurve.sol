@@ -5,11 +5,17 @@ pragma solidity >=0.6.0 <0.7.0;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "./Curve.sol";
 
+/**
+ * `LinearCurve`: Curve with a 1:1 reserve:token ratio
+ */
 contract LinearCurve is Curve {
     using SafeMath for uint256;
 
     constructor() public {}
 
+    /**
+     * `price` View returning the price given a supply and an amount
+     */
     function price(uint256 supply, uint256 amount)
         external
         override

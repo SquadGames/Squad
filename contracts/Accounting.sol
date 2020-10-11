@@ -7,8 +7,11 @@ import "./FeeLib.sol";
 import "@nomiclabs/buidler/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-// import "@nomiclabs/buidler/console.sol";
-
+/**
+ * `Accounting` tracks credits and debits to accounts
+ *
+ * Only the owner may debit or credit accounts
+ */
 contract Accounting is Ownable {
     using SafeMath for uint256;
 
@@ -17,19 +20,38 @@ contract Accounting is Ownable {
 
     constructor() public {}
 
-    function credit(address account, uint256 amount) public onlyOwner() {
+    /**
+     * `credit`: Increase an account by an amount
+     *
+     * Requires caller to be the owner
+     *
+     * Requires account to be a nonzero address
+     */
+    function credit(address account, uint256 amount) external onlyOwner() {
         require(account != address(0), "Accounting: credit zero address");
         accounts[account] = accounts[account].add(amount);
         accountsTotal = accountsTotal.add(amount);
     }
 
-    function debit(address account, uint256 amount) public onlyOwner() {
+    /**
+     * `credit`: Decrease an account by an amount
+     *
+     * Requires caller to be the owner
+     *
+     * Requires account to be a nonzero address
+     */
+    function debit(address account, uint256 amount) external onlyOwner() {
         require(account != address(0), "Accounting: debit zero address");
         accounts[account] = accounts[account].sub(amount);
         accountsTotal = accountsTotal.sub(amount);
     }
 
-    function total(address account) public view returns (uint256) {
+    /**
+     * `total`: View returning the current total for an account
+     *
+     * Requires account to be a nonzero address
+     */
+    function total(address account) external view returns (uint256) {
         require(
             account != address(0),
             "Accounting: no account at zero address"

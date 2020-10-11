@@ -242,7 +242,12 @@ contract SquadController is Ownable {
         );
 
         // buy `amount` of the continuous token to be claimed by this license
-        bondingCurveFactory.buy(contributionId, amount, msg.sender, address(this));
+        bondingCurveFactory.buy(
+            contributionId,
+            amount,
+            msg.sender,
+            address(this)
+        );
 
         FeeLib.FeeSplit memory feeSplit = FeeLib.calculateFeeSplit(
             contribution.feeRate,
@@ -408,9 +413,9 @@ contract SquadController is Ownable {
      */
     function reserveDust() public view returns (uint256) {
         return
-            bondingCurveFactory.reserveBalanceOf(address(bondingCurveFactory)).sub(
-                accounting.accountsTotal()
-            );
+            bondingCurveFactory
+                .reserveBalanceOf(address(bondingCurveFactory))
+                .sub(accounting.accountsTotal());
     }
 
     event RecoverReserveDust(address to, uint256 amount);
