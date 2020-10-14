@@ -10,8 +10,8 @@ describe('SquadController', () => {
   let squadAlice, squadBob, claimCheckBob, reserveTokenBob
   let aliceId, aliceTokenName, aliceFee
 
-  const networkFee = 100
-  const maxNetworkFee = 1000
+  const networkFeeRate = 100
+  const maxNetworkFeeRate = 1000
 
   beforeEach(async () => {
     const signers = await ethers.getSigners()
@@ -32,15 +32,20 @@ describe('SquadController', () => {
     const Curve = await ethers.getContractFactory('LinearCurve')
     curve = await Curve.deploy()
 
+    const BondingCurveFactory = await ethers.getContractFactory('BondingCurveFactory')
+    const bondingCurveFactory = await BondingCurveFactory.deploy(reserveToken.address)
+
     const SquadController = await ethers.getContractFactory('SquadController')
     squadController = await SquadController.deploy(
-      reserveToken.address,
+      bondingCurveFactory.address,
       claimCheck.address,
-      networkFee,
-      maxNetworkFee,
+      networkFeeRate,
+      maxNetworkFeeRate,
       treasury,
       curve.address
     )
+
+    bondingCurveFactory.transferOwnership(squadController.address)
 
     squadAlice = squadController.connect(Alice)
     squadBob = squadController.connect(Bob)
@@ -154,18 +159,18 @@ describe('SquadController', () => {
   })
 
   it('Owner sets the network fee up to the limit', async () => {
-    const aboveMaxNetworkFee = maxNetworkFee + 1
+    const aboveMaxNetworkFee = maxNetworkFeeRate + 1
     await expect(
-      squadController.setNetworkFeeRate(networkFee, aboveMaxNetworkFee)
+      squadController.setNetworkFeeRate(networkFeeRate, aboveMaxNetworkFee)
     ).to.be.revertedWith('SquadController: cannot set fee higer than max')
     await expect(
-      squadAlice.setNetworkFeeRate(networkFee, maxNetworkFee)
+      squadAlice.setNetworkFeeRate(networkFeeRate, maxNetworkFeeRate)
     ).to.be.revertedWith('Ownable: caller is not the owner')
     await expect(
-      squadController.setNetworkFeeRate(networkFee, maxNetworkFee)
-    ).to.emit(squadController, 'SetNetworkFeeRate').withArgs(networkFee, maxNetworkFee)
+      squadController.setNetworkFeeRate(networkFeeRate, maxNetworkFeeRate)
+    ).to.emit(squadController, 'SetNetworkFeeRate').withArgs(networkFeeRate, maxNetworkFeeRate)
     assert(
-      await squadController.networkFeeRate() === maxNetworkFee,
+      await squadController.networkFeeRate() === maxNetworkFeeRate,
       'Network fee failed to set'
     )
   })
@@ -189,8 +194,8 @@ describe('SquadController', () => {
     const aliceAccount = purchasePrice.mul(aliceFee).div(10000).add(
       purchasePrice.mul(aliceFee).mod(10000)
     )
-    const networkFeePaid = aliceAccount.mul(networkFee).div(10000).add(
-      aliceAccount.mul(networkFee).mod(10000)
+    const networkFeePaid = aliceAccount.mul(networkFeeRate).div(10000).add(
+      aliceAccount.mul(networkFeeRate).mod(10000)
     )
     const withdrawAmount = aliceAccount.sub(networkFeePaid)
 

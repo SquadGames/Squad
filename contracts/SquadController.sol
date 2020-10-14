@@ -69,13 +69,17 @@ contract SquadController is Ownable {
      * `maxNetworkFeeRate`
      */
     constructor(
-        address reserveToken,
+        address _bondingCurveFactory,
         address _tokenClaimCheck,
         uint16 _networkFeeRate,
         uint16 _maxNetworkFeeRate,
         address _treasury,
         address _curve
     ) public {
+        require(
+                _bondingCurveFactory != address(0),
+                "SquadController: zero bondingCurveFactory address"
+                );
         require(
             _treasury != address(0),
             "SquadController: zero treasury address"
@@ -94,7 +98,7 @@ contract SquadController is Ownable {
         treasury = _treasury;
         tokenClaimCheck = TokenClaimCheck(_tokenClaimCheck);
         curve = Curve(_curve);
-        bondingCurveFactory = new BondingCurveFactory(reserveToken);
+        bondingCurveFactory = BondingCurveFactory(_bondingCurveFactory);
         accounting = new Accounting();
     }
 
