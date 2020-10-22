@@ -4,27 +4,25 @@ const { expect, assert } = require('chai')
 
 describe('TokenClaimCheck', () => {
   let tokenClaimCheck, tokenA, tokenB
-  let Owner, owner, Alice, alice, Bob, bob
-  let tccAlice, tccBob, tokenAAlice, tokenBAlice, tokenABob, tokenBBob
+  let Alice, alice, Bob, bob
+  let tccAlice, tccBob, tokenAAlice, tokenBBob
 
   beforeEach(async () => {
     // Wallets
     const wallets = await ethers.getSigners()
-    Owner = wallets[0]
     Alice = wallets[1]
     Bob = wallets[2]
 
     // addresses
-    owner = await Owner.getAddress()
     alice = await Alice.getAddress()
     bob = await Bob.getAddress()
 
     // deploy contracts
     const TokenClaimCheck = await ethers.getContractFactory('TokenClaimCheck')
     tokenClaimCheck = await TokenClaimCheck.deploy('Token Claim Check', 'TCC')
-    const ManagedERC20 = await ethers.getContractFactory('ManagedERC20')
-    tokenA = await ManagedERC20.deploy('Token A', 'TA')
-    tokenB = await ManagedERC20.deploy('Token B', 'TB')
+    const ERC20Managed = await ethers.getContractFactory('ERC20Managed')
+    tokenA = await ERC20Managed.deploy('Token A', 'TA')
+    tokenB = await ERC20Managed.deploy('Token B', 'TB')
     await tokenClaimCheck.deployed()
     await tokenA.deployed()
     await tokenB.deployed()
@@ -33,8 +31,6 @@ describe('TokenClaimCheck', () => {
     tccAlice = tokenClaimCheck.connect(Alice)
     tccBob = tokenClaimCheck.connect(Bob)
     tokenAAlice = tokenA.connect(Alice)
-    tokenABob = tokenA.connect(Bob)
-    tokenBAlice = tokenB.connect(Alice)
     tokenBBob = tokenB.connect(Bob)
 
     // set up initial balances
@@ -50,22 +46,19 @@ describe('TokenClaimCheck', () => {
     async () => {
       // Alice deposits 20 A for a claim
       const aliceDeposit = ethers.utils.parseEther('20')
-      const aliceClaimURI = 'test/aliceClaimURI'
       await tokenAAlice.approve(tokenClaimCheck.address, aliceDeposit)
       await expect(
         tccAlice.mint(
           alice, // to
           aliceDeposit, // amount
           alice, // from
-          tokenA.address, // token
-          aliceClaimURI // tokenURI
+          tokenA.address // token
         )
       ).to.emit(tccAlice, 'Mint').withArgs(
         alice,
         aliceDeposit,
         alice,
-        tokenA.address,
-        aliceClaimURI
+        tokenA.address
       )
 
       // Alice should have 80 token A and 0 token B
@@ -75,14 +68,12 @@ describe('TokenClaimCheck', () => {
 
       // Bob deposits 70 B for a claim
       const bobDeposit = ethers.utils.parseEther('70')
-      const bobClaimURI = 'test/bobClaimURI'
       await tokenBBob.approve(tokenClaimCheck.address, bobDeposit)
       await tccBob.mint(
         bob,
         bobDeposit,
         bob,
-        tokenB.address,
-        bobClaimURI
+        tokenB.address
       )
 
       // Bob should have 30 token B and 0 token A

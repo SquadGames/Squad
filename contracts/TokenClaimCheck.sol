@@ -25,21 +25,14 @@ contract TokenClaimCheck is ERC721 {
         ERC721(name, symbol)
     {}
 
-    event Mint(
-        address to,
-        uint256 amount,
-        address from,
-        address token,
-        string tokenURI
-    );
+    event Mint(address to, uint256 amount, address from, address token);
 
     function mint(
         address to,
         uint256 amount,
         address from,
-        address token,
-        string memory tokenURI
-    ) public {
+        address token
+    ) public returns (uint256) {
         require(amount > 0, "TokenClaimCheck: claim zero amount");
         require(
             token != address(0),
@@ -56,9 +49,9 @@ contract TokenClaimCheck is ERC721 {
 
         // Mint the claim check
         _mint(to, newClaimId);
-        _setTokenURI(newClaimId, tokenURI);
 
-        emit Mint(to, amount, from, token, tokenURI);
+        emit Mint(to, amount, from, token);
+        return newClaimId;
     }
 
     event Redeem(uint256 claimId, uint256 amount, address owner);
@@ -83,5 +76,9 @@ contract TokenClaimCheck is ERC721 {
         delete claims[claimId];
 
         emit Redeem(claimId, claim.amount, claimOwner);
+    }
+
+    function exists(uint256 claimId) external view returns (bool) {
+        return _exists(claimId);
     }
 }

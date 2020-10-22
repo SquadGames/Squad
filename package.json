@@ -15,7 +15,7 @@
     "fix-sol": "npx prettier --write contracts/**/*.sol",
     "docs": "npm run docs-sol",
     "docs-sol": "npx solidity-docgen",
-    "test": "npx buidler --network ganache test"
+    "test": "npx buidler test"
   },
   "repository": {
     "type": "git",
