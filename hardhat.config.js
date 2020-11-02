@@ -1,6 +1,7 @@
 /* global usePlugin task module ethers require process */
 
-usePlugin('@nomiclabs/buidler-waffle')
+require('@nomiclabs/buidler-waffle')
+require('dotenv').config()
 
 // This is a sample Buidler task. To learn how to create your own go to
 // https://buidler.dev/guides/create-task.html
@@ -20,6 +21,9 @@ const ROPSTEN_PRIVATE_KEY = process.env['ROPSTEN_PRIVATE_KEY']
 // Go to https://buidler.dev/config/ to learn more
 module.exports = {
   networks: {
+    hardhat: {
+
+    },
     ropsten: {
       url: `https://ropsten.infura.io/v3/${INFURA_PROJECT_ID}`,
       accounts: [
@@ -28,7 +32,7 @@ module.exports = {
     }
   },
   // This is a sample solc configuration that specifies which version of solc to use
-  solc: {
+  solidity: {
     version: '0.6.8'
   }
 }

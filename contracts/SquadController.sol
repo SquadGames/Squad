@@ -11,7 +11,7 @@ import "./BondingCurveFactory.sol";
 import "./Curve.sol";
 import "./Accounting.sol";
 import "./FeeLib.sol";
-import "@nomiclabs/buidler/console.sol";
+import "hardhat/console.sol";
 
 /**
  * `SquadController` provides the basic Squad Platform

@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./ERC20Managed.sol";
 import "./Curve.sol";
 import "./FeeLib.sol";
-import "@nomiclabs/buidler/console.sol";
+import "hardhat/console.sol";
 
 /**
  * `BondingCurveFactory`: Creates and interacts with new bonding

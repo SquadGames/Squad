@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-import "@nomiclabs/buidler/console.sol";
+import "hardhat/console.sol";
 
 contract TokenClaimCheck is ERC721 {
     using Counters for Counters.Counter;
