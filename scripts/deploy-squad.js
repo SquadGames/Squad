@@ -1,5 +1,7 @@
 /* global ethers process require */
 
+// const hre = require("hardhat")
+
 // We require the Buidler Runtime Environment explicitly here. This is optional
 // but useful for running the script in a standalone fashion through `node <script>`.
 // When running the script with `buidler run <script>` you'll find the Buidler
@@ -11,6 +13,7 @@ async function main () {
   // If this runs in a standalone fashion you may want to call compile manually
   // to make sure everything is compiled
   // await bre.run('compile');
+  //  const ethers = hre.ethers
 
   const treasuryAddress = process.env['TREASURY_ADDRESS']
   if (treasuryAddress === undefined) {
@@ -19,10 +22,9 @@ async function main () {
   const networkFeeRate = process.env['NETWORK_FEE_RATE'] || "0"
   const maxNetworkFeeRate = process.env['MAX_NETWORK_FEE_RATE'] || "1000"
 
-  // TEMPORARY DEFAULTS FOR ROPSTEN TEST
-  let tokenClaimCheckAddress = process.env['TOKEN_CLAIM_CHECK_ADDRESS'] || "0x3e671040ffb4BbB9d93395f64b944901580Ba8A4"
-  let curveAddress = process.env['CURVE_ADDRESS'] || "0xE0A4DDA27A32124396f8D882C81Bf8dEece83D78"
-  let reserveTokenAddress = process.env['RESERVE_TOKEN_ADDRESS'] || "0xa34eDEA5857c7DD9BD2EB6090a8F25043856D878"
+  let tokenClaimCheckAddress = process.env['TOKEN_CLAIM_CHECK_ADDRESS']
+  let curveAddress = process.env['CURVE_ADDRESS']
+  let reserveTokenAddress = process.env['RESERVE_TOKEN_ADDRESS']
   let bondingCurveFactoryAddress = process.env['BONDING_CURVE_FACTORY_ADDRESS']
   let bondingCurveFactory
 
@@ -67,10 +69,9 @@ async function main () {
   await squadController.deployed()
   console.log('SquadController deployed to:', squadController.address)
 
-  console.log(
-    'bondingCurveFactory.transferOwnership',
-    await bondingCurveFactory.transferOwnership(squadController.address)
-  )
+  console.log("Transfering factory ownership to controller")
+  await bondingCurveFactory.transferOwnership(squadController.address)
+  console.log("done!")
 }
 
 // We recommend this pattern to be able to use async/await everywhere
