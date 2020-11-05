@@ -19,6 +19,12 @@ async function main () {
   if (treasuryAddress === undefined) {
     throw new Error("TREASURY_ADDRESS required")
   }
+
+  const userAddress = process.env['USER_ADDRESS']
+  if (userAddress === undefined) {
+    throw new Error("USER_ADDRESS required")
+  }
+
   const networkFeeRate = process.env['NETWORK_FEE_RATE'] || "0"
   const maxNetworkFeeRate = process.env['MAX_NETWORK_FEE_RATE'] || "1000"
 
@@ -49,6 +55,8 @@ async function main () {
     await reserveToken.deployed()
     reserveTokenAddress = reserveToken.address
     console.log("ManagedReserveToken deployed to:", reserveTokenAddress)
+    await reserveToken.mint(userAddress, ethers.utils.parseEther('10000'))
+    console.log("Minted reserve tokens to:", userAddress)
   }
   if (bondingCurveFactoryAddress === undefined) {
     const BondingCurveFactory = await ethers.getContractFactory('BondingCurveFactory')
@@ -68,6 +76,8 @@ async function main () {
   )
   await squadController.deployed()
   console.log('SquadController deployed to:', squadController.address)
+
+  console.log('Accounting deployed to:', await squadController.accounting())
 
   console.log("Transfering factory ownership to controller")
   await bondingCurveFactory.transferOwnership(squadController.address)
