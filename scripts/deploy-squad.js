@@ -1,6 +1,8 @@
 /* global ethers process require */
 
 // const hre = require("hardhat")
+const crypto = require("crypto")
+const defsJSON = require("./default_defs.json")
 
 // We require the Buidler Runtime Environment explicitly here. This is optional
 // but useful for running the script in a standalone fashion through `node <script>`.
@@ -13,7 +15,7 @@ async function main () {
   // If this runs in a standalone fashion you may want to call compile manually
   // to make sure everything is compiled
   // await bre.run('compile');
-  //  const ethers = hre.ethers
+  // const ethers = hre.ethers
 
   const treasuryAddress = process.env['TREASURY_ADDRESS']
   if (treasuryAddress === undefined) {
@@ -82,6 +84,38 @@ async function main () {
   console.log("Transfering factory ownership to controller")
   await bondingCurveFactory.transferOwnership(squadController.address)
   console.log("done!")
+
+  // Submit default contributions
+  const defs = defsJSON.map(def => {
+    def.id = '0x'+crypto.createHash('sha256').update(JSON.stringify(def)).digest('hex')
+    return def
+  })
+  let exampleId
+  await Promise.all(defs.map(async (def) => {
+    exampleId = def.id
+    let name
+    if (def.Component) {
+      name = def.Component.name
+    } 
+    if (def.Format) {
+      name = def.Format.name
+    }
+    if (def.Game) {
+      name = def.Game.name
+    }
+    console.log("Trying to submit new contribution:", name, def.id)
+    return await squadController.newContribution(
+      def.id,
+      treasuryAddress,
+      0,
+      ethers.utils.parseEther('1'),
+      name,
+      name.slice(0, 2),
+      JSON.stringify({game: "Squad Chess", experiment: true})
+    )
+  }))
+  console.log('BOOL', await squadController.exists(exampleId), exampleId)
+  console.log('Contributions submitted')
 }
 
 // We recommend this pattern to be able to use async/await everywhere
