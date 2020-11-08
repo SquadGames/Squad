@@ -3,6 +3,7 @@
 // const hre = require("hardhat")
 const crypto = require("crypto")
 const defsJSON = require("./default_defs.json")
+const defs = require("./default-defs.js")
 
 // We require the Buidler Runtime Environment explicitly here. This is optional
 // but useful for running the script in a standalone fashion through `node <script>`.
@@ -86,9 +87,8 @@ async function main () {
   console.log("done!")
 
   // Submit default contributions
-  const defs = defsJSON.map(def => {
+  defs.forEach(def => {
     def.id = '0x'+crypto.createHash('sha256').update(JSON.stringify(def)).digest('hex')
-    return def
   })
   let exampleId
   await Promise.all(defs.map(async (def) => {
