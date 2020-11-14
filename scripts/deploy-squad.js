@@ -58,6 +58,8 @@ async function main () {
     await reserveToken.deployed()
     reserveTokenAddress = reserveToken.address
     console.log("ManagedReserveToken deployed to:", reserveTokenAddress)
+    await reserveToken.mint(treasuryAddress, ethers.utils.parseEther('10000'))
+    console.log("Minted reserve tokens to:", treasuryAddress)
     await reserveToken.mint(userAddress, ethers.utils.parseEther('10000'))
     console.log("Minted reserve tokens to:", userAddress)
   }
