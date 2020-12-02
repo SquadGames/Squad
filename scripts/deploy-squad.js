@@ -2,7 +2,6 @@
 
 // const hre = require("hardhat")
 const crypto = require("crypto")
-const defsJSON = require("./default_defs.json")
 const defs = require("./default-defs.js")
 
 // We require the Buidler Runtime Environment explicitly here. This is optional
@@ -89,11 +88,10 @@ async function main () {
   console.log("done!")
 
   // Submit default contributions
-  defs.forEach(def => {
-    def.id = '0x'+crypto.createHash('sha256').update(JSON.stringify(def)).digest('hex')
-  })
   let exampleId
-  await Promise.all(defs.map(async (def) => {
+  for(let i = 0; i < defs.length; i++) {
+    const def = defs[i]
+    def.id = '0x'+crypto.createHash('sha256').update(JSON.stringify(def)).digest('hex')
     exampleId = def.id
     let name
     if (def.Component) {
@@ -106,16 +104,16 @@ async function main () {
       name = def.Game.name
     }
     console.log("Trying to submit new contribution:", name, def.id)
-    return await squadController.newContribution(
+    await squadController.newContribution(
       def.id,
       treasuryAddress,
       0,
       ethers.utils.parseEther('1'),
       name,
       name.slice(0, 2),
-      JSON.stringify({game: "Squad Chess", experiment: true})
+      JSON.stringify(def)
     )
-  }))
+  }
   console.log('BOOL', await squadController.exists(exampleId), exampleId)
   console.log('Contributions submitted')
 }

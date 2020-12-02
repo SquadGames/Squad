@@ -246,4 +246,17 @@ const ExhibitionChess = {
   }
 }
 
-module.exports = [...squadChessComponents, squadChess , chessFormat, chessRBKNRNBQFormat, ExhibitionChess]
+const createChesses = (format) => {
+  const chesses = []
+  for(let i = 0; i < 1000; i++) {
+    let newFormat = {}
+    newFormat.Format = Object.assign({}, format.Format)
+    newFormat.Format.name = `Chess ${Math.random()}`
+    chesses.push(newFormat)
+  }
+  return chesses
+}
+
+const chesses = createChesses(ExhibitionChess)
+
+module.exports = [ ...squadChessComponents, squadChess , chessFormat, chessRBKNRNBQFormat, ExhibitionChess, ...chesses ]
