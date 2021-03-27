@@ -20,6 +20,7 @@ task('accounts', 'Prints the list of accounts', async () => {
 // Go to https://buidler.dev/config/ to learn more
 
 const config = {
+  defaultNetwork: "localhost",
   networks: {},
     // This is a sample solc configuration that specifies which version of solc to use
   solidity: {

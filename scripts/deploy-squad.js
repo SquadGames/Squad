@@ -22,10 +22,7 @@ async function main () {
     throw new Error("TREASURY_ADDRESS required")
   }
 
-  const userAddress = process.env['USER_ADDRESS']
-  if (userAddress === undefined) {
-    throw new Error("USER_ADDRESS required")
-  }
+  
 
   const networkFeeRate = process.env['NETWORK_FEE_RATE'] || "0"
   const maxNetworkFeeRate = process.env['MAX_NETWORK_FEE_RATE'] || "1000"
@@ -35,6 +32,11 @@ async function main () {
   let reserveTokenAddress = process.env['RESERVE_TOKEN_ADDRESS']
   let bondingCurveFactoryAddress = process.env['BONDING_CURVE_FACTORY_ADDRESS']
   let bondingCurveFactory
+
+  const userAddress = process.env['USER_ADDRESS']
+  if (userAddress === undefined && reserveTokenAddress === undefined) {
+    throw new Error("USER_ADDRESS required if deploying a test reserve token")
+  }
 
   // We get the contract to deploy
   if (tokenClaimCheckAddress === undefined) {

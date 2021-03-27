@@ -16,7 +16,8 @@
     "docs": "npm run docs-sol",
     "docs-sol": "npx solidity-docgen",
     "test": "npx buidler test",
-    "deploy-local": "npx hardhat run scripts/deploy-squad.js --network localhost"
+    "deploy-local": "npx hardhat run scripts/deploy-squad.js --network localhost",
+    "deploy-ropsten": "npx hardhat run scripts/deploy-squad.js --network ropsten"
   },
   "repository": {
     "type": "git",

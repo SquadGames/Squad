@@ -248,7 +248,7 @@ const ExhibitionChess = {
 
 const createChesses = (format) => {
   const chesses = []
-  for(let i = 0; i < 1000; i++) {
+  for(let i = 0; i < 10; i++) {
     let newFormat = {}
     newFormat.Format = Object.assign({}, format.Format)
     newFormat.Format.name = `Chess ${Math.random()}`
