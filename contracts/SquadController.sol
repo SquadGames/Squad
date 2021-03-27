@@ -11,7 +11,7 @@ import "./BondingCurveFactory.sol";
 import "./Curve.sol";
 import "./Accounting.sol";
 import "./FeeLib.sol";
-import "@nomiclabs/buidler/console.sol";
+import "hardhat/console.sol";
 
 /**
  * `SquadController` provides the basic Squad Platform
@@ -105,6 +105,7 @@ contract SquadController is Ownable {
     event NewContribution(
         address contributor,
         bytes32 contributionId,
+        string name,
         address beneficiary,
         uint16 feeRate,
         uint256 purchasePrice,
@@ -180,6 +181,7 @@ contract SquadController is Ownable {
         emit NewContribution(
             msg.sender,
             contributionId,
+            name,
             beneficiary,
             feeRate,
             purchasePrice,

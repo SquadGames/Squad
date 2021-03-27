@@ -1,5 +1,9 @@
 /* global ethers process require */
 
+// const hre = require("hardhat")
+const crypto = require("crypto")
+const defs = require("./default-defs.js")
+
 // We require the Buidler Runtime Environment explicitly here. This is optional
 // but useful for running the script in a standalone fashion through `node <script>`.
 // When running the script with `buidler run <script>` you'll find the Buidler
@@ -11,20 +15,28 @@ async function main () {
   // If this runs in a standalone fashion you may want to call compile manually
   // to make sure everything is compiled
   // await bre.run('compile');
+  // const ethers = hre.ethers
 
   const treasuryAddress = process.env['TREASURY_ADDRESS']
   if (treasuryAddress === undefined) {
     throw new Error("TREASURY_ADDRESS required")
   }
+
+  
+
   const networkFeeRate = process.env['NETWORK_FEE_RATE'] || "0"
   const maxNetworkFeeRate = process.env['MAX_NETWORK_FEE_RATE'] || "1000"
 
-  // TEMPORARY DEFAULTS FOR ROPSTEN TEST
-  let tokenClaimCheckAddress = process.env['TOKEN_CLAIM_CHECK_ADDRESS'] || "0x3e671040ffb4BbB9d93395f64b944901580Ba8A4"
-  let curveAddress = process.env['CURVE_ADDRESS'] || "0xE0A4DDA27A32124396f8D882C81Bf8dEece83D78"
-  let reserveTokenAddress = process.env['RESERVE_TOKEN_ADDRESS'] || "0xa34eDEA5857c7DD9BD2EB6090a8F25043856D878"
+  let tokenClaimCheckAddress = process.env['TOKEN_CLAIM_CHECK_ADDRESS']
+  let curveAddress = process.env['CURVE_ADDRESS']
+  let reserveTokenAddress = process.env['RESERVE_TOKEN_ADDRESS']
   let bondingCurveFactoryAddress = process.env['BONDING_CURVE_FACTORY_ADDRESS']
   let bondingCurveFactory
+
+  const userAddress = process.env['USER_ADDRESS']
+  if (userAddress === undefined && reserveTokenAddress === undefined) {
+    throw new Error("USER_ADDRESS required if deploying a test reserve token")
+  }
 
   // We get the contract to deploy
   if (tokenClaimCheckAddress === undefined) {
@@ -47,6 +59,10 @@ async function main () {
     await reserveToken.deployed()
     reserveTokenAddress = reserveToken.address
     console.log("ManagedReserveToken deployed to:", reserveTokenAddress)
+    await reserveToken.mint(treasuryAddress, ethers.utils.parseEther('10000'))
+    console.log("Minted reserve tokens to:", treasuryAddress)
+    await reserveToken.mint(userAddress, ethers.utils.parseEther('10000'))
+    console.log("Minted reserve tokens to:", userAddress)
   }
   if (bondingCurveFactoryAddress === undefined) {
     const BondingCurveFactory = await ethers.getContractFactory('BondingCurveFactory')
@@ -67,10 +83,41 @@ async function main () {
   await squadController.deployed()
   console.log('SquadController deployed to:', squadController.address)
 
-  console.log(
-    'bondingCurveFactory.transferOwnership',
-    await bondingCurveFactory.transferOwnership(squadController.address)
-  )
+  console.log('Accounting deployed to:', await squadController.accounting())
+
+  console.log("Transfering factory ownership to controller")
+  await bondingCurveFactory.transferOwnership(squadController.address)
+  console.log("done!")
+
+  // Submit default contributions
+  let exampleId
+  for(let i = 0; i < defs.length; i++) {
+    const def = defs[i]
+    def.id = '0x'+crypto.createHash('sha256').update(JSON.stringify(def)).digest('hex')
+    exampleId = def.id
+    let name
+    if (def.Component) {
+      name = def.Component.name
+    } 
+    if (def.Format) {
+      name = def.Format.name
+    }
+    if (def.Game) {
+      name = def.Game.name
+    }
+    console.log("Trying to submit new contribution:", name, def.id)
+    await squadController.newContribution(
+      def.id,
+      treasuryAddress,
+      0,
+      ethers.utils.parseEther('1'),
+      name,
+      name.slice(0, 2),
+      JSON.stringify(def)
+    )
+  }
+  console.log('BOOL', await squadController.exists(exampleId), exampleId)
+  console.log('Contributions submitted')
 }
 
 // We recommend this pattern to be able to use async/await everywhere
